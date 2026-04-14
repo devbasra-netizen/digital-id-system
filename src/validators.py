@@ -1,0 +1,96 @@
+"""
+Input validators — each function raises ValidationError if the value
+is invalid, and returns None silently on success.
+"""
+
+import re
+from datetime import date
+from src.exceptions import ValidationError
+from src.config import SYSTEM_CONSTANTS
+
+
+def validate_id_number(id_number: str) -> None:
+    """Non-empty string, max 50 characters."""
+    if not id_number or not isinstance(id_number, str):
+        raise ValidationError("ID number cannot be empty or null.")
+    if len(id_number.strip()) == 0:
+        raise ValidationError("ID number cannot be blank.")
+    if len(id_number) > 50:
+        raise ValidationError("ID number cannot exceed 50 characters.")
+
+
+def validate_name(name: str, field_name: str = "Name") -> None:
+    """Between MIN_NAME_LENGTH and MAX_NAME_LENGTH characters."""
+    if not name or not isinstance(name, str):
+        raise ValidationError(f"{field_name} cannot be empty or null.")
+    if len(name.strip()) == 0:
+        raise ValidationError(f"{field_name} cannot be blank.")
+
+    min_len = SYSTEM_CONSTANTS["MIN_NAME_LENGTH"]
+    max_len = SYSTEM_CONSTANTS["MAX_NAME_LENGTH"]
+
+    if len(name) < min_len:
+        raise ValidationError(f"{field_name} must be at least {min_len} characters.")
+    if len(name) > max_len:
+        raise ValidationError(f"{field_name} cannot exceed {max_len} characters.")
+
+
+def validate_email(email: str) -> None:
+    """Must match the email regex defined in SYSTEM_CONSTANTS."""
+    if not email or not isinstance(email, str):
+        raise ValidationError("Email cannot be empty or null.")
+    if len(email.strip()) == 0:
+        raise ValidationError("Email cannot be blank.")
+
+    email_regex = SYSTEM_CONSTANTS["EMAIL_REGEX"]
+    if not re.match(email_regex, email):
+        raise ValidationError(f"Email '{email}' is not in a valid format.")
+
+
+def validate_address(address: str) -> None:
+    """Between MIN_ADDRESS_LENGTH and MAX_ADDRESS_LENGTH characters."""
+    if not address or not isinstance(address, str):
+        raise ValidationError("Address cannot be empty or null.")
+    if len(address.strip()) == 0:
+        raise ValidationError("Address cannot be blank.")
+
+    min_len = SYSTEM_CONSTANTS["MIN_ADDRESS_LENGTH"]
+    max_len = SYSTEM_CONSTANTS["MAX_ADDRESS_LENGTH"]
+
+    if len(address) < min_len:
+        raise ValidationError(f"Address must be at least {min_len} characters.")
+    if len(address) > max_len:
+        raise ValidationError(f"Address cannot exceed {max_len} characters.")
+
+
+def validate_date_of_birth(date_of_birth: date) -> None:
+    """Must be a date object, not in the future, and within a reasonable age range."""
+    if not isinstance(date_of_birth, date):
+        raise ValidationError("Date of birth must be a valid date object.")
+
+    today = date.today()
+
+    if date_of_birth > today:
+        raise ValidationError("Date of birth cannot be in the future.")
+
+    min_year = SYSTEM_CONSTANTS["MIN_YEAR_OF_BIRTH"]
+    if date_of_birth.year < min_year:
+        raise ValidationError(f"Date of birth cannot be before year {min_year}.")
+
+    max_age = SYSTEM_CONSTANTS["MAX_AGE_YEARS"]
+    age = today.year - date_of_birth.year
+    if (today.month, today.day) < (date_of_birth.month, date_of_birth.day):
+        age -= 1
+
+    if age > max_age:
+        raise ValidationError(f"Age cannot exceed {max_age} years.")
+
+
+def validate_nationality(nationality: str) -> None:
+    """Non-empty string, max 100 characters."""
+    if not nationality or not isinstance(nationality, str):
+        raise ValidationError("Nationality cannot be empty or null.")
+    if len(nationality.strip()) == 0:
+        raise ValidationError("Nationality cannot be blank.")
+    if len(nationality) > 100:
+        raise ValidationError("Nationality cannot exceed 100 characters.")
