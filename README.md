@@ -2,7 +2,7 @@
 
 Backend system for managing digital identities across a federated ecosystem of organisations.  Built for the **IOT452U** Software Engineering Tools and Techniques coursework.
 
-**GitHub Repository:** https://github.com/YOUR_USERNAME/digital-id-system
+**GitHub Repository:** https://github.com/devbasra-netizen/digital-id-system
 
 ---
 
@@ -16,7 +16,7 @@ Backend system for managing digital identities across a federated ecosystem of o
 ### Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/digital-id-system.git
+git clone https://github.com/devbasra-netizen/digital-id-system.git
 cd digital-id-system
 pip install -r requirements.txt
 ```
