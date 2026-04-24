@@ -26,6 +26,11 @@ class IdentityService:
     Status transitions:
         PENDING -> ACTIVE -> SUSPENDED -> ACTIVE (reinstate)
         Any non-revoked state -> REVOKED (terminal)
+
+    Rules:
+        - suspend_id only accepts ACTIVE IDs
+        - activate_id is idempotent for ACTIVE IDs
+        - revoke_id is idempotent for REVOKED IDs
     """
 
     def __init__(self, audit_log: AuditLog) -> None:
@@ -136,8 +141,8 @@ class IdentityService:
 
         if digital_id.status == IDStatus.SUSPENDED:
             self._audit.record(auth.org_name, "SUSPEND_ID", id_number,
-                               "No change: already SUSPENDED.", True)
-            return digital_id
+                               "Failed: ID is already SUSPENDED.", False)
+            raise InvalidOperationError("Can only suspend an ACTIVE Digital ID.")
 
         if digital_id.status != IDStatus.ACTIVE:
             self._audit.record(
