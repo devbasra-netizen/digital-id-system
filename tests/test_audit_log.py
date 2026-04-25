@@ -75,3 +75,25 @@ class TestAuditQueries:
         assert audit.get_failed_entries() == []
         assert audit.get_entries_for_id("X") == []
         assert audit.get_entries_count() == 0
+
+
+class TestAuditDisplay:
+
+    def test_display_empty_log_message(self, audit, capsys):
+        audit.display()
+        output = capsys.readouterr().out
+        assert "No audit entries recorded." in output
+
+    def test_display_prints_entries_with_status_marker(self, audit, capsys):
+        audit.record("Home Ministry", "CREATE_ID", "ID001", "Created.", True)
+        audit.record("HMRC", "VERIFY_WITH_HISTORY", "ID001", "Denied.", False)
+
+        audit.display()
+        output = capsys.readouterr().out
+
+        assert "AUDIT LOG" in output
+        assert "[OK" in output
+        assert "[FAIL" in output
+        assert "CREATE_ID" in output
+        assert "VERIFY_WITH_HISTORY" in output
+

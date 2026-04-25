@@ -3,6 +3,7 @@ from datetime import date
 from src.platform import DigitalIDPlatform
 from src.models.digital_id import OrganisationType
 from src.auth.organisation_auth import OrganisationAuth
+from src.exceptions import PermissionError
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
