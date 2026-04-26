@@ -35,7 +35,7 @@ This walks through 12 scenarios: creating IDs, lifecycle transitions, three veri
 pytest tests/ -v
 ```
 
-80 automated tests across four test files.
+Automated tests are organised across four test files.
 
 ### Lint
 
@@ -85,9 +85,10 @@ PENDING ──→ ACTIVE ⇄ SUSPENDED
   Any non-revoked state ──→ REVOKED (terminal)
 ```
 
-- Immutable fields: `id_number`, `full_name`, `date_of_birth`, `nationality`
+- Immutable fields: `id_number`, `full_name`, `date_of_birth`, `nationality`, `created_date`
 - Mutable fields: `address`, `email`, `has_restriction`
 - Suspension history tracked with start/end dates
+- `suspend_id` only accepts `ACTIVE` IDs (re-suspending an already `SUSPENDED` ID raises an error)
 
 ### Role-Based Access Control
 
@@ -113,9 +114,9 @@ Six validators enforce data quality at service entry points: ID number, name, em
 
 ## Testing
 
-80 tests organised into four files:
+Tests are organised into four files:
 
-- **test_identity_service.py** — creation, status transitions, idempotency, updates, permission denial
+- **test_identity_service.py** — creation, status transitions, query methods, overlap boundaries, updates, permission denial
 - **test_verification_service.py** — all three modes across different org types
 - **test_validation.py** — happy paths, boundary cases, and invalid inputs for each validator
 - **test_audit_log.py** — recording, querying, and filtering audit entries
@@ -126,4 +127,4 @@ CI runs automatically on every push via GitHub Actions.
 
 ## Design Decisions
 
-See [DESIGN.md](DESIGN.md) for notes on dependency injection, the exception hierarchy, immutability enforcement, and the permission model.
+See [DESIGN.md](DESIGN.md) for notes on dependency injection, the exception hierarchy, model-level immutability enforcement, and the permission model.

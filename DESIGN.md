@@ -42,6 +42,7 @@ Key rules:
 - Only ACTIVE IDs can be suspended
 - Only SUSPENDED IDs can be reinstated
 - REVOKED is terminal — no further transitions or updates allowed
+- Suspending an already-SUSPENDED ID raises `InvalidOperationError` (not idempotent)
 - Activating an already-ACTIVE ID is idempotent (no error, no change)
 - Revoking an already-REVOKED ID is also idempotent
 
@@ -84,7 +85,13 @@ Every service method calls `auth.require_permission(operation)` as its first ste
 
 ## Immutability Enforcement
 
-Some fields on a Digital ID (name, date of birth, nationality) should never change after creation.  Rather than using a frozen dataclass (which would make tests harder to set up), I enforce this at the service layer: there are simply no methods that modify those fields.  The mutable fields (`address`, `email`, `has_restriction`) have dedicated update methods that check permissions and record audit entries.
+Core identity fields are enforced as immutable directly in `DigitalID` by blocking attribute reassignment after construction.  This keeps the model honest even if code bypasses the service layer.
+
+Immutable fields: `id_number`, `full_name`, `date_of_birth`, `nationality`, `created_date`.
+
+Mutable fields (`address`, `email`, `status`, `has_restriction`, `suspension_history`) are still changed by service methods so that permission checks and audit entries stay in one place.
+
+I used this lightweight `__setattr__` guard instead of a fully frozen dataclass because the lifecycle/status fields must still be mutable.
 
 ---
 
