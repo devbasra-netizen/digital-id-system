@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List
 
 
-@dataclass
+@dataclass(frozen=True)
 class AuditEntry:
     """A single audit record: who did what, when, and whether it succeeded."""
     timestamp: datetime

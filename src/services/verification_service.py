@@ -4,19 +4,20 @@ validity without modifying identity data.
 """
 
 from datetime import date
+from dataclasses import dataclass
 from typing import Dict
 from src.models.digital_id import DigitalID, IDStatus
 from src.auth.organisation_auth import OrganisationAuth
 from src.audit.audit_log import AuditLog
-from src.exceptions import IDNotFoundError, PermissionError
+from src.exceptions import IDNotFoundError, PermissionError, ValidationError
 
 
+@dataclass(frozen=True)
 class VerificationResult:
     """Simple container for a verification outcome (valid/invalid + message)."""
 
-    def __init__(self, is_valid: bool, message: str) -> None:
-        self.is_valid: bool = is_valid
-        self.message: str = message
+    is_valid: bool
+    message: str
 
     def __repr__(self) -> str:
         status = "VALID" if self.is_valid else "INVALID"
@@ -40,6 +41,24 @@ class VerificationService:
         if id_number not in self._identities:
             raise IDNotFoundError(f"Digital ID '{id_number}' not found.")
         return self._identities[id_number]
+
+    def _validate_period(
+        self,
+        auth: OrganisationAuth,
+        id_number: str,
+        period_start: date,
+        period_end: date,
+    ) -> None:
+        """Reject invalid reporting periods before verification logic runs."""
+        if not isinstance(period_start, date) or not isinstance(period_end, date):
+            message = "Reporting period dates must be date objects."
+            self._audit.record(auth.org_name, "VERIFY_WITH_HISTORY", id_number, message, False)
+            raise ValidationError(message)
+
+        if period_start > period_end:
+            message = "Reporting period start date cannot be after end date."
+            self._audit.record(auth.org_name, "VERIFY_WITH_HISTORY", id_number, message, False)
+            raise ValidationError(message)
 
     def verify_basic(self, auth: OrganisationAuth, id_number: str) -> VerificationResult:
         """Return valid only if the ID exists and is currently ACTIVE."""
@@ -75,6 +94,8 @@ class VerificationService:
             self._audit.record(auth.org_name, "VERIFY_WITH_HISTORY", id_number,
                                f"Unauthorized: {str(e)}", False)
             raise
+
+        self._validate_period(auth, id_number, period_start, period_end)
 
         try:
             digital_id = self._lookup(id_number)

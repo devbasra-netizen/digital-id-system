@@ -26,8 +26,8 @@ def validate_name(name: str, field_name: str = "Name") -> None:
     if len(name.strip()) == 0:
         raise ValidationError(f"{field_name} cannot be blank.")
 
-    min_len = SYSTEM_CONSTANTS["MIN_NAME_LENGTH"]
-    max_len = SYSTEM_CONSTANTS["MAX_NAME_LENGTH"]
+    min_len = int(SYSTEM_CONSTANTS["MIN_NAME_LENGTH"])
+    max_len = int(SYSTEM_CONSTANTS["MAX_NAME_LENGTH"])
 
     if len(name) < min_len:
         raise ValidationError(f"{field_name} must be at least {min_len} characters.")
@@ -42,7 +42,7 @@ def validate_email(email: str) -> None:
     if len(email.strip()) == 0:
         raise ValidationError("Email cannot be blank.")
 
-    email_regex = SYSTEM_CONSTANTS["EMAIL_REGEX"]
+    email_regex = str(SYSTEM_CONSTANTS["EMAIL_REGEX"])
     if not re.match(email_regex, email):
         raise ValidationError(f"Email '{email}' is not in a valid format.")
 
@@ -54,8 +54,8 @@ def validate_address(address: str) -> None:
     if len(address.strip()) == 0:
         raise ValidationError("Address cannot be blank.")
 
-    min_len = SYSTEM_CONSTANTS["MIN_ADDRESS_LENGTH"]
-    max_len = SYSTEM_CONSTANTS["MAX_ADDRESS_LENGTH"]
+    min_len = int(SYSTEM_CONSTANTS["MIN_ADDRESS_LENGTH"])
+    max_len = int(SYSTEM_CONSTANTS["MAX_ADDRESS_LENGTH"])
 
     if len(address) < min_len:
         raise ValidationError(f"Address must be at least {min_len} characters.")
@@ -73,11 +73,11 @@ def validate_date_of_birth(date_of_birth: date) -> None:
     if date_of_birth > today:
         raise ValidationError("Date of birth cannot be in the future.")
 
-    min_year = SYSTEM_CONSTANTS["MIN_YEAR_OF_BIRTH"]
+    min_year = int(SYSTEM_CONSTANTS["MIN_YEAR_OF_BIRTH"])
     if date_of_birth.year < min_year:
         raise ValidationError(f"Date of birth cannot be before year {min_year}.")
 
-    max_age = SYSTEM_CONSTANTS["MAX_AGE_YEARS"]
+    max_age = int(SYSTEM_CONSTANTS["MAX_AGE_YEARS"])
     age = today.year - date_of_birth.year
     if (today.month, today.day) < (date_of_birth.month, date_of_birth.day):
         age -= 1

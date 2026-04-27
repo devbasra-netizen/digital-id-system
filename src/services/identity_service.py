@@ -11,7 +11,12 @@ from typing import Dict, List
 from src.models.digital_id import DigitalID, IDStatus
 from src.auth.organisation_auth import OrganisationAuth
 from src.audit.audit_log import AuditLog
-from src.exceptions import InvalidOperationError, IDNotFoundError, PermissionError
+from src.exceptions import (
+    InvalidOperationError,
+    IDNotFoundError,
+    PermissionError,
+    ValidationError,
+)
 from src.validators import (
     validate_id_number, validate_name, validate_email,
     validate_address, validate_date_of_birth, validate_nationality
@@ -48,6 +53,16 @@ class IdentityService:
             raise IDNotFoundError(f"Digital ID '{id_number}' does not exist.")
         return self._identities[id_number]
 
+    def _lookup_for_operation(
+        self, auth: OrganisationAuth, operation: str, id_number: str
+    ) -> DigitalID:
+        """Look up an ID and audit the failure path if it does not exist."""
+        try:
+            return self._get_id_or_raise(id_number)
+        except IDNotFoundError as e:
+            self._audit.record(auth.org_name, operation, id_number, f"Failed: {str(e)}", False)
+            raise
+
     def create_digital_id(
         self,
         auth: OrganisationAuth,
@@ -71,13 +86,17 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        # Validate all inputs
-        validate_id_number(id_number)
-        validate_name(full_name, "Full name")
-        validate_date_of_birth(date_of_birth)
-        validate_nationality(nationality)
-        validate_address(address)
-        validate_email(email)
+        # Validate all inputs before mutating state.
+        try:
+            validate_id_number(id_number)
+            validate_name(full_name, "Full name")
+            validate_date_of_birth(date_of_birth)
+            validate_nationality(nationality)
+            validate_address(address)
+            validate_email(email)
+        except ValidationError as e:
+            self._audit.record(auth.org_name, "CREATE_ID", id_number, f"Failed: {str(e)}", False)
+            raise
 
         if id_number in self._identities:
             self._audit.record(auth.org_name, "CREATE_ID", id_number,
@@ -106,7 +125,7 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        digital_id = self._get_id_or_raise(id_number)
+        digital_id = self._lookup_for_operation(auth, "ACTIVATE_ID", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
             self._audit.record(auth.org_name, "ACTIVATE_ID", id_number,
@@ -132,7 +151,7 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        digital_id = self._get_id_or_raise(id_number)
+        digital_id = self._lookup_for_operation(auth, "SUSPEND_ID", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
             self._audit.record(auth.org_name, "SUSPEND_ID", id_number,
@@ -166,7 +185,7 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        digital_id = self._get_id_or_raise(id_number)
+        digital_id = self._lookup_for_operation(auth, "REINSTATE_ID", id_number)
 
         if digital_id.status != IDStatus.SUSPENDED:
             self._audit.record(
@@ -194,7 +213,7 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        digital_id = self._get_id_or_raise(id_number)
+        digital_id = self._lookup_for_operation(auth, "REVOKE_ID", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
             self._audit.record(auth.org_name, "REVOKE_ID", id_number,
@@ -220,8 +239,15 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        validate_address(new_address)
-        digital_id = self._get_id_or_raise(id_number)
+        try:
+            validate_address(new_address)
+        except ValidationError as e:
+            self._audit.record(
+                auth.org_name, "UPDATE_ADDRESS", id_number, f"Failed: {str(e)}", False
+            )
+            raise
+
+        digital_id = self._lookup_for_operation(auth, "UPDATE_ADDRESS", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
             self._audit.record(auth.org_name, "UPDATE_ADDRESS", id_number,
@@ -242,8 +268,13 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        validate_email(new_email)
-        digital_id = self._get_id_or_raise(id_number)
+        try:
+            validate_email(new_email)
+        except ValidationError as e:
+            self._audit.record(auth.org_name, "UPDATE_EMAIL", id_number, f"Failed: {str(e)}", False)
+            raise
+
+        digital_id = self._lookup_for_operation(auth, "UPDATE_EMAIL", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
             self._audit.record(auth.org_name, "UPDATE_EMAIL", id_number,
@@ -265,7 +296,7 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        digital_id = self._get_id_or_raise(id_number)
+        digital_id = self._lookup_for_operation(auth, "SET_RESTRICTION", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
             self._audit.record(auth.org_name, "SET_RESTRICTION", id_number,

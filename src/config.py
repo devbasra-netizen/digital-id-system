@@ -20,7 +20,7 @@ ORGANISATION_PERMISSIONS: dict[OrganisationType, set[str]] = {
 }
 
 # Validation constants used by validators.py
-SYSTEM_CONSTANTS = {
+SYSTEM_CONSTANTS: dict[str, int | str] = {
     "MIN_YEAR_OF_BIRTH": 1900,
     "MAX_AGE_YEARS": 150,
     "EMAIL_REGEX": r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
