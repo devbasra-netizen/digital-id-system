@@ -3,7 +3,7 @@ from datetime import date
 from src.platform import DigitalIDPlatform
 from src.models.digital_id import OrganisationType
 from src.auth.organisation_auth import OrganisationAuth
-from src.exceptions import PermissionError
+from src.exceptions import PermissionError, ValidationError
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -127,6 +127,22 @@ class TestHistoryVerification:
         with pytest.raises(PermissionError):
             platform.verification.verify_with_history(
                 bank, active_id.id_number, date(2026, 1, 1), date(2026, 12, 31)
+            )
+
+    def test_history_verify_rejects_start_after_end(self, platform, tax, active_id):
+        with pytest.raises(ValidationError, match="start date"):
+            platform.verification.verify_with_history(
+                tax, active_id.id_number, date(2026, 12, 31), date(2026, 1, 1)
+            )
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "VERIFY_WITH_HISTORY"
+        assert failed[-1].id_number == active_id.id_number
+
+    def test_history_verify_rejects_non_date_inputs(self, platform, tax, active_id):
+        with pytest.raises(ValidationError, match="date objects"):
+            platform.verification.verify_with_history(
+                tax, active_id.id_number, "2026-01-01", "2026-12-31"
             )
 
 

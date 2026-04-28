@@ -37,6 +37,13 @@ class TestAuditRecord:
         assert entries[0].details == "first"
         assert entries[1].details == "second"
 
+    def test_entries_are_immutable(self, audit):
+        audit.record("A", "OP1", "ID1", "original", True)
+        entry = audit.get_all_entries()[0]
+
+        with pytest.raises(AttributeError):
+            entry.details = "edited"
+
 
 class TestAuditQueries:
 
@@ -96,4 +103,3 @@ class TestAuditDisplay:
         assert "[FAIL" in output
         assert "CREATE_ID" in output
         assert "VERIFY_WITH_HISTORY" in output
-

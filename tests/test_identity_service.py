@@ -3,7 +3,7 @@ from datetime import date
 from src.platform import DigitalIDPlatform
 from src.models.digital_id import IDStatus, OrganisationType
 from src.auth.organisation_auth import OrganisationAuth
-from src.exceptions import InvalidOperationError, PermissionError
+from src.exceptions import InvalidOperationError, PermissionError, IDNotFoundError, ValidationError
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -83,6 +83,17 @@ class TestCreateDigitalID:
 
         with pytest.raises(AttributeError):
             digital_id.nationality = "French"
+
+    def test_create_validation_failure_is_audited(self, platform, central):
+        with pytest.raises(ValidationError):
+            platform.identity.create_digital_id(
+                central, "BAD001", "Bad Email User",
+                date(1990, 1, 1), "British", "1 Good St", "invalid-email"
+            )
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "CREATE_ID"
+        assert "valid format" in failed[-1].details
 
 
 # ── Status Transitions ────────────────────────────────────────────────────────
@@ -180,6 +191,38 @@ class TestUpdateOperations:
         with pytest.raises(PermissionError):
             platform.identity.update_address(bank, active_id.id_number, "Hack Address")
 
+    def test_update_address_validation_failure_is_audited(self, platform, central, active_id):
+        with pytest.raises(ValidationError):
+            platform.identity.update_address(central, active_id.id_number, "12")
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "UPDATE_ADDRESS"
+        assert "at least" in failed[-1].details
+
+    def test_update_email_validation_failure_is_audited(self, platform, central, active_id):
+        with pytest.raises(ValidationError):
+            platform.identity.update_email(central, active_id.id_number, "not-an-email")
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "UPDATE_EMAIL"
+        assert "valid format" in failed[-1].details
+
+    def test_activate_missing_id_is_audited(self, platform, central):
+        with pytest.raises(IDNotFoundError):
+            platform.identity.activate_id(central, "MISSING-1")
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "ACTIVATE_ID"
+        assert failed[-1].id_number == "MISSING-1"
+
+    def test_update_missing_id_is_audited(self, platform, central):
+        with pytest.raises(IDNotFoundError):
+            platform.identity.update_address(central, "MISSING-2", "123 Any Street")
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "UPDATE_ADDRESS"
+        assert failed[-1].id_number == "MISSING-2"
+
 
 class TestQueryMethods:
 
@@ -272,4 +315,3 @@ class TestSuspensionOverlapBoundaries:
     def test_closed_suspension_before_query_period_does_not_overlap(self, active_id):
         active_id.suspension_history = [(date(2026, 3, 1), date(2026, 3, 15))]
         assert active_id.was_suspended_during(date(2026, 3, 16), date(2026, 3, 31)) is False
-
