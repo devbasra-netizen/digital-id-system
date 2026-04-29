@@ -99,11 +99,15 @@ I used this lightweight `__setattr__` guard instead of a fully frozen dataclass 
 
 The `AuditLog` is append-only.  Every operation — whether it succeeds or fails — gets a timestamped entry with the organisation name, operation type, affected ID, a human-readable detail string, and a success/failure flag.  This supports the brief's requirement that key actions are recorded so system behaviour can be examined.
 
+I made each `AuditEntry` immutable (`@dataclass(frozen=True)`) so entries cannot be edited after recording.
+
 ---
 
 ## Input Validation
 
 Six validator functions in `validators.py` check inputs before any data is stored.  All limits (name length, email regex, etc.) are pulled from `SYSTEM_CONSTANTS` in `config.py` so they can be changed in one place.
+
+For tax-history checks, `VerificationService.verify_with_history(...)` also validates the period itself (`start <= end` and both values are `date` objects) and rejects invalid requests consistently.
 
 ---
 

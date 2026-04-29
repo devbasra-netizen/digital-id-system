@@ -23,7 +23,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run linter
-        run: flake8 src/ --max-line-length=100
+        run: flake8 src tests --max-line-length=100
+
+      - name: Run type checks
+        run: mypy src
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: pytest tests/ -v --cov=src --cov-report=term-missing

@@ -32,7 +32,7 @@ This walks through 12 scenarios: creating IDs, lifecycle transitions, three veri
 ### Run the tests
 
 ```bash
-pytest tests/ -v
+pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
 Automated tests are organised across four test files.
@@ -40,7 +40,8 @@ Automated tests are organised across four test files.
 ### Lint
 
 ```bash
-flake8 src/ --max-line-length=100
+flake8 src tests --max-line-length=100
+mypy src
 ```
 
 ---
@@ -106,6 +107,8 @@ Eight organisation types, each with a defined set of allowed operations.  Only t
 
 Every operation (successful or failed) is recorded in an append-only log with timestamp, organisation, operation type, affected ID, and outcome.
 
+This includes validation failures and "ID not found" failures for lifecycle/update operations, so rejected requests remain traceable.
+
 ### Input Validation
 
 Six validators enforce data quality at service entry points: ID number, name, email, address, date of birth, nationality.
@@ -122,6 +125,7 @@ Tests are organised into four files:
 - **test_audit_log.py** — recording, querying, and filtering audit entries
 
 CI runs automatically on every push via GitHub Actions.
+The pipeline runs `flake8`, `mypy`, and `pytest` with coverage output.
 
 ---
 
