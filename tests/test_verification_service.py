@@ -90,6 +90,10 @@ class TestBasicVerification:
         with pytest.raises(PermissionError):
             platform.verification.verify_basic(dvla, active_id.id_number)
 
+    def test_result_repr_contains_validity_label(self, platform, bank, active_id):
+        result = platform.verification.verify_basic(bank, active_id.id_number)
+        assert "VALID" in repr(result)
+
 
 # ── History Verification ──────────────────────────────────────────────────────
 
@@ -145,6 +149,16 @@ class TestHistoryVerification:
                 tax, active_id.id_number, "2026-01-01", "2026-12-31"
             )
 
+    def test_history_nonexistent_id_is_invalid_and_audited(self, platform, tax):
+        result = platform.verification.verify_with_history(
+            tax, "MISSING-HISTORY", date(2026, 1, 1), date(2026, 12, 31)
+        )
+        assert result.is_valid is False
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "VERIFY_WITH_HISTORY"
+        assert failed[-1].id_number == "MISSING-HISTORY"
+
 
 # ── Restriction Verification ──────────────────────────────────────────────────
 
@@ -177,3 +191,11 @@ class TestRestrictionVerification:
     def test_tax_cannot_use_restriction_verify(self, platform, tax, active_id):
         with pytest.raises(PermissionError):
             platform.verification.verify_with_restriction_check(tax, active_id.id_number)
+
+    def test_restriction_nonexistent_id_is_invalid_and_audited(self, platform, dvla):
+        result = platform.verification.verify_with_restriction_check(dvla, "MISSING-RESTRICT")
+        assert result.is_valid is False
+
+        failed = platform.audit.get_failed_entries()
+        assert failed[-1].operation == "VERIFY_WITH_RESTRICTION"
+        assert failed[-1].id_number == "MISSING-RESTRICT"
