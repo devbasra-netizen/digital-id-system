@@ -191,6 +191,28 @@ class TestUpdateOperations:
         with pytest.raises(PermissionError):
             platform.identity.update_address(bank, active_id.id_number, "Hack Address")
 
+    def test_bank_cannot_suspend_id(self, platform, bank, active_id):
+        with pytest.raises(PermissionError):
+            platform.identity.suspend_id(bank, active_id.id_number)
+
+    def test_bank_cannot_reinstate_id(self, platform, bank, active_id, central):
+        platform.identity.suspend_id(central, active_id.id_number)
+        with pytest.raises(PermissionError):
+            platform.identity.reinstate_id(bank, active_id.id_number)
+
+    def test_bank_cannot_revoke_id(self, platform, bank, active_id):
+        with pytest.raises(PermissionError):
+            platform.identity.revoke_id(bank, active_id.id_number)
+
+    def test_bank_cannot_set_restriction(self, platform, bank, active_id):
+        with pytest.raises(PermissionError):
+            platform.identity.set_restriction(bank, active_id.id_number, True)
+
+    def test_cannot_set_restriction_on_revoked_id(self, platform, central, active_id):
+        platform.identity.revoke_id(central, active_id.id_number)
+        with pytest.raises(ValueError, match="revoked"):
+            platform.identity.set_restriction(central, active_id.id_number, True)
+
     def test_update_address_validation_failure_is_audited(self, platform, central, active_id):
         with pytest.raises(ValidationError):
             platform.identity.update_address(central, active_id.id_number, "12")
