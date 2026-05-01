@@ -36,6 +36,13 @@ class TestIDNumberValidation:
         with pytest.raises(ValidationError):
             validate_id_number("   ")
 
+    def test_max_length_id_number_is_allowed(self):
+        validate_id_number("A" * 50)
+
+    def test_too_long_id_number_raises(self):
+        with pytest.raises(ValidationError):
+            validate_id_number("A" * 51)
+
 
 class TestNameValidation:
     """Tests for name validation."""
@@ -65,6 +72,10 @@ class TestNameValidation:
         """None name should raise ValidationError."""
         with pytest.raises(ValidationError):
             validate_name(None)
+
+    def test_whitespace_name_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_name("   ")
 
 
 class TestEmailValidation:
@@ -100,6 +111,10 @@ class TestEmailValidation:
         with pytest.raises(ValidationError):
             validate_email(None)
 
+    def test_whitespace_email_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_email("   ")
+
 
 class TestAddressValidation:
     """Tests for address validation."""
@@ -129,6 +144,10 @@ class TestAddressValidation:
         """None address should raise ValidationError."""
         with pytest.raises(ValidationError):
             validate_address(None)
+
+    def test_whitespace_address_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_address("   ")
 
 
 class TestDateOfBirthValidation:
@@ -165,6 +184,12 @@ class TestDateOfBirthValidation:
         with pytest.raises(ValidationError):
             validate_date_of_birth("1990-01-01")
 
+    def test_age_just_over_maximum_rejected(self):
+        today = date.today()
+        too_old = date(today.year - 151, today.month, today.day)
+        with pytest.raises(ValidationError):
+            validate_date_of_birth(too_old)
+
 
 class TestNationalityValidation:
     """Tests for nationality validation."""
@@ -189,3 +214,7 @@ class TestNationalityValidation:
         """Nationalities exceeding maximum length should raise ValidationError."""
         with pytest.raises(ValidationError):
             validate_nationality("A" * 101)
+
+    def test_whitespace_nationality_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_nationality("   ")
