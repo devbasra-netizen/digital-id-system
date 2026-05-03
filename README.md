@@ -65,10 +65,10 @@ digital-id-system/
 │   ├── config.py                  # Permission matrix + constants
 │   └── platform.py                # Wires services together
 ├── tests/
-│   ├── test_identity_service.py   # 23 tests — lifecycle + updates
-│   ├── test_verification_service.py # 19 tests — all three modes
-│   ├── test_validation.py         # 28 tests — all six validators
-│   └── test_audit_log.py          # 10 tests — audit recording + queries
+│   ├── test_identity_service.py   # Identity lifecycle, updates, and query tests
+│   ├── test_verification_service.py # Verification mode and permission tests
+│   ├── test_validation.py         # Validator boundary and invalid-input tests
+│   └── test_audit_log.py          # Audit recording and query tests
 ├── main.py                        # Console demonstration
 ├── DESIGN.md                      # Design decisions and patterns
 ├── requirements.txt
