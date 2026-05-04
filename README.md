@@ -1,12 +1,12 @@
 # Digital ID System
 
-Backend system for managing digital identities across a federated ecosystem of organisations.  Built for the **IOT452U** Software Engineering Tools and Techniques coursework.
+This repo is my IOT452U coursework project. I built a Python backend that stores digital IDs and lets organisations verify them with role-based permissions.
 
 **GitHub Repository:** https://github.com/devbasra-netizen/digital-id-system
 
 ---
 
-## How to Run
+## Running It
 
 ### Prerequisites
 
@@ -27,7 +27,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-This walks through 12 scenarios: creating IDs, lifecycle transitions, three verification modes, permission enforcement, mutable-field updates, and the full audit trail.
+The demo walks through 12 scenarios: creating IDs, changing status, running verification checks, hitting permission errors, updating fields, and checking the audit trail.
 
 ### Run the tests
 
@@ -35,7 +35,7 @@ This walks through 12 scenarios: creating IDs, lifecycle transitions, three veri
 pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
-Automated tests are organised across four test files.
+Tests are split into four files so each area is easier to debug.
 
 ### Lint
 
@@ -70,14 +70,14 @@ digital-id-system/
 │   ├── test_validation.py         # Validator boundary and invalid-input tests
 │   └── test_audit_log.py          # Audit recording and query tests
 ├── main.py                        # Console demonstration
-├── DESIGN.md                      # Design decisions and patterns
+├── DESIGN.md                      # Design decisions and trade-offs
 ├── requirements.txt
 └── .github/workflows/ci.yml       # GitHub Actions CI
 ```
 
 ---
 
-## Key Features
+## What the system does
 
 ### Digital ID Lifecycle
 
@@ -93,7 +93,7 @@ PENDING ──→ ACTIVE ⇄ SUSPENDED
 
 ### Role-Based Access Control
 
-Eight organisation types, each with a defined set of allowed operations.  Only the Central Authority can create or modify IDs; other organisations can only verify.
+There are eight organisation types. Only the Central Authority can create or update IDs. Everyone else can verify only.
 
 ### Three Verification Modes
 
@@ -105,13 +105,13 @@ Eight organisation types, each with a defined set of allowed operations.  Only t
 
 ### Audit Trail
 
-Every operation (successful or failed) is recorded in an append-only log with timestamp, organisation, operation type, affected ID, and outcome.
+Every operation (success or failure) is written to an append-only audit log with timestamp, organisation, operation, ID, and outcome.
 
-This includes validation failures and "ID not found" failures for lifecycle/update operations, so rejected requests remain traceable.
+Validation errors and "ID not found" failures are logged too, so rejected requests are still traceable.
 
 ### Input Validation
 
-Six validators enforce data quality at service entry points: ID number, name, email, address, date of birth, nationality.
+Six validators check the main input fields: ID number, name, email, address, date of birth, and nationality.
 
 ---
 
@@ -124,11 +124,12 @@ Tests are organised into four files:
 - **test_validation.py** — happy paths, boundary cases, and invalid inputs for each validator
 - **test_audit_log.py** — recording, querying, and filtering audit entries
 
-CI runs automatically on every push via GitHub Actions.
-The pipeline runs `flake8`, `mypy`, and `pytest` with coverage output.
+CI runs on each push with GitHub Actions.
+The workflow runs `flake8`, `mypy`, and `pytest` with coverage output.
 
 ---
 
-## Design Decisions
 
-See [DESIGN.md](DESIGN.md) for notes on dependency injection, the exception hierarchy, model-level immutability enforcement, and the permission model.
+## Design notes
+
+I wrote up the design trade-offs in [DESIGN.md](DESIGN.md), including dependency injection, the exception hierarchy, model immutability, and the permission model.

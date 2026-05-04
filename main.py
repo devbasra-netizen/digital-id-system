@@ -1,8 +1,4 @@
-"""
-Console demo — walks through every core scenario from the project brief:
-ID creation, lifecycle transitions, verification modes, permission
-enforcement, mutable-field updates, and audit logging.
-"""
+"""Console demo script for the coursework scenarios."""
 from datetime import date
 from src.platform import DigitalIDPlatform
 from src.models.digital_id import OrganisationType, IDStatus
@@ -34,9 +30,9 @@ def main():
     welfare = OrganisationAuth(OrganisationType.WELFARE_SERVICE, "Dept of Work & Pensions")
 
     print("\n" + "=" * 70)
-    print("   DIGITAL ID PLATFORM — COMPREHENSIVE DEMONSTRATION")
+    print("   DIGITAL ID PLATFORM - DEMO RUN")
     print("=" * 70)
-    print("   Testing all core system functionality and business rules")
+    print("   Running key features and rule checks")
 
     # ── 1. Create identities ─────────────────────────────────────────
     section("1. Creating Digital IDs (Central Authority Only)")
@@ -62,7 +58,7 @@ def main():
         demo_line(f"Error: {e}")
 
     # ── 2. Input validation demonstration ────────────────────────────
-    section("2. Input Validation (Protecting Data Quality)")
+    section("2. Input Validation")
     try:
         # Try invalid email
         platform.identity.create_digital_id(
@@ -82,7 +78,7 @@ def main():
         demo_line(f"Date validation caught (expected): {type(e).__name__}")
 
     # ── 3. Permission enforcement ────────────────────────────────────
-    section("3. Permission Enforcement (Authorization)")
+    section("3. Permission Enforcement")
     try:
         # Bank cannot create IDs
         platform.identity.create_digital_id(
@@ -134,7 +130,7 @@ def main():
     demo_line(f"Alice's new email: {alice.email}")
 
     # ── 7. Restrictions and DVLA verification ────────────────────────
-    section("7. Restriction Flags (DVLA License Eligibility Check)")
+    section("7. Restriction Flags (DVLA Check)")
     result = platform.verification.verify_with_restriction_check(dvla, "ID001")
     demo_line(f"DVLA: Alice (no restriction): {result.is_valid}")
 
@@ -165,7 +161,7 @@ def main():
     demo_line(f"HMRC: Bob after reinstate: {result.is_valid}")
 
     # ── 9. Terminal state (REVOKE) ───────────────────────────────────
-    section("9. Revoke (Terminal State - No Further Transitions)")
+    section("9. Revoke (Terminal State)")
     demo_line(f"Charlie status before revoke: {charlie.status.value}")
 
     platform.identity.revoke_id(home_ministry, "ID003")
@@ -183,7 +179,7 @@ def main():
         demo_line(f"  Activate rejected: {type(e).__name__}")
 
     # ── 10. Search and query capabilities ────────────────────────────
-    section("10. Search and Query Capabilities")
+    section("10. Search and query examples")
     demo_line(f"Total Digital IDs in system: {platform.identity.count_ids()}")
 
     active_ids = platform.identity.find_ids_by_status(IDStatus.ACTIVE)
@@ -196,7 +192,7 @@ def main():
     demo_line(f"IDs matching name pattern 'Smith': {[id.full_name for id in smith_ids]}")
 
     # ── 11. Permission-based access examples ─────────────────────────
-    section("11. Verification Permissions Enforced")
+    section("11. Verification permissions")
     try:
         # HMRC cannot do basic verification
         platform.verification.verify_basic(hmrc, "ID001")
@@ -212,7 +208,7 @@ def main():
         demo_line("Barclays cannot use history verify: Permission denied")
 
     # ── 12. Full audit trail ─────────────────────────────────────────
-    section("12. Complete Audit Trail for Compliance")
+    section("12. Full Audit Trail")
     total_entries = len(platform.audit.get_all_entries())
     demo_line(f"Total audit entries recorded: {total_entries}")
 
@@ -226,17 +222,17 @@ def main():
     demo_line(f"All operations for HMRC: {hmrc_count} entries")
 
     print("\n" + "=" * 70)
-    print("   AUDIT LOG - Full System Activity")
+    print("   AUDIT LOG - ALL RECORDED ACTIVITY")
     print("=" * 70)
     platform.audit.display()
 
     print("\n" + "=" * 70)
-    print("   DEMONSTRATION COMPLETE")
+    print("   DEMO COMPLETE")
     print("=" * 70)
-    print("   ✓ All core functionality demonstrated")
-    print("   ✓ Permission enforcement working")
-    print("   ✓ Status transitions validated")
-    print("   ✓ Audit trail complete and traceable")
+    print("   - Core functionality shown")
+    print("   - Permission checks shown")
+    print("   - Status transitions shown")
+    print("   - Audit trail shown")
     print("=" * 70 + "\n")
 
 

@@ -1,7 +1,4 @@
-"""
-Input validators — each function raises ValidationError if the value
-is invalid, and returns None silently on success.
-"""
+"""Input validators used before storing any Digital ID data."""
 
 import re
 from datetime import date

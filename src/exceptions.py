@@ -1,9 +1,4 @@
-"""
-Custom exceptions for the Digital ID system.
-
-Each exception inherits from both a base DigitalIDError and the closest
-built-in type so that callers can catch either.
-"""
+"""Custom exceptions used in this Digital ID project."""
 
 import builtins
 

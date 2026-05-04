@@ -1,6 +1,4 @@
-"""
-System-wide configuration: permission matrix and validation constants.
-"""
+"""Project settings for permissions and validation limits."""
 
 from src.models.digital_id import OrganisationType
 

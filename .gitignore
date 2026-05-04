@@ -50,3 +50,7 @@ data/
 # Local environment
 .env
 .env.local
+
+# Coursework notes/docs kept out of version control
+docs/
+

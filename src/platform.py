@@ -1,7 +1,4 @@
-"""
-Platform module — wires together the identity and verification services
-over a shared identity store and audit log.
-"""
+"""Wires the services together using one shared store and one audit log."""
 
 from src.audit.audit_log import AuditLog
 from src.services.identity_service import IdentityService
@@ -9,12 +6,10 @@ from src.services.verification_service import VerificationService
 
 
 class DigitalIDPlatform:
-    """
-    Entry point for the Digital ID system.
+    """Main entry point for the Digital ID system.
 
-    Creates the shared audit log and identity store, then injects them
-    into IdentityService (used by the central authority) and
-    VerificationService (used by consuming organisations).
+    It creates the shared audit log and identity store, then passes them to
+    IdentityService and VerificationService.
     """
 
     def __init__(self) -> None:
