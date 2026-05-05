@@ -1,117 +1,99 @@
 # Design Notes
 
-These are the main decisions I made while building the Digital ID system for coursework.
+This file explains the main design choices I made for the coursework.
 
----
+## 1) Two services instead of one
 
-## Splitting management and verification
+I split the logic into:
 
-The brief asks for management and consumption to be separate, so I used two services:
+- `IdentityService` for Central Authority actions (create/update/change status)
+- `VerificationService` for organisations that only need to check IDs
 
-- **IdentityService** - only for the Central Authority. It creates IDs, changes status, and updates mutable fields.
-- **VerificationService** - used by consuming organisations (banks, HMRC, DVLA, etc.). It can read and verify data but not change it.
+This matches the brief and keeps write actions separate from read/verify actions.
 
-Both services share one in-memory store and one audit log through `DigitalIDPlatform`.
+Both services are connected by `DigitalIDPlatform`, which gives them the same in-memory ID store and the same audit log.
 
----
+## 2) Dependency injection for easier testing
 
-## Dependency injection
+I pass shared objects (like `AuditLog`) into service constructors instead of creating them inside each method.
 
-Services receive their dependencies through constructor parameters rather than creating them internally:
+Why I did this:
 
-```python
-class IdentityService:
-    def __init__(self, audit_log: AuditLog) -> None:
-        self._identities = {}
-        self._audit = audit_log
+- tests can build a fresh platform each time
+- no hidden global state
+- easier to reason about what each service depends on
+
+## 3) Status lifecycle rules
+
+The ID status flow is:
+
+```text
+PENDING -> ACTIVE <-> SUSPENDED -> REVOKED (final)
 ```
 
-This makes testing easier because each test can create a fresh `DigitalIDPlatform` with no leftover state.
+Rules implemented in service methods:
 
----
+- only `ACTIVE` IDs can be suspended
+- only `SUSPENDED` IDs can be reinstated
+- `REVOKED` is terminal (no more status changes or field updates)
+- suspend on already suspended ID raises `InvalidOperationError`
+- activate/revoke on same current state is idempotent
 
-## Status lifecycle
+I store suspension periods as `(start_date, end_date)` tuples so history checks can test overlap with a date range.
 
-Digital IDs follow this state machine:
+## 4) Exception structure
 
-```
-PENDING ──→ ACTIVE ⇄ SUSPENDED ──→ REVOKED (terminal)
-```
+I used a base `DigitalIDError`, then specific exceptions for validation, invalid operations, permissions, and missing IDs.
 
-Rules I enforced:
-- Only ACTIVE IDs can be suspended
-- Only SUSPENDED IDs can be reinstated
-- REVOKED is terminal - no further transitions or updates are allowed
-- Suspending an already-SUSPENDED ID raises `InvalidOperationError` (not idempotent)
-- Activating an already-ACTIVE ID is idempotent (no error, no change)
-- Revoking an already-REVOKED ID is also idempotent
+Each one also inherits from a related Python built-in exception (`ValueError`, `PermissionError`, `KeyError`).
 
-Each suspension is stored as `(start_date, end_date)` so HMRC checks can tell if a suspension overlapped a reporting period.
+That means callers can either catch project-specific exceptions or broad built-in types.
 
----
+## 5) Permission model
 
-## Custom exception hierarchy
+Permissions are based on organisation type and are defined in `config.py`.
 
-I defined a base `DigitalIDError` and four specific exceptions:
+Each service method checks permissions first with `auth.require_permission(...)`. If not allowed:
 
-```
-DigitalIDError (base)
-├── ValidationError    (also extends ValueError)
-├── InvalidOperationError (also extends ValueError)
-├── PermissionError    (also extends builtins.PermissionError)
-└── IDNotFoundError    (also extends KeyError)
-```
+- raise `PermissionError`
+- write a failed entry to the audit log
 
-Each custom exception inherits from both `DigitalIDError` and a related built-in exception. So code can catch either the project-specific error or the usual Python type.
+So denied requests are still visible in logs.
 
----
+## 6) Data immutability
 
-## Role-based access control
+Core identity fields are locked after creation:
 
-Each organisation is represented by an `OrganisationAuth` object containing a type and name. The permission matrix lives in `config.py`:
+- `id_number`
+- `full_name`
+- `date_of_birth`
+- `nationality`
+- `created_date`
 
-```python
-ORGANISATION_PERMISSIONS = {
-    OrganisationType.CENTRAL_AUTHORITY: {"create_id", "update_id", "change_status", ...},
-    OrganisationType.TAX_AUTHORITY: {"verify_with_history"},
-    OrganisationType.BANK: {"verify_basic"},
-    ...
-}
-```
+Other fields (`address`, `email`, `status`, `has_restriction`, `suspension_history`) can change, but only through service methods, so checks + logging always happen.
 
-Each service method calls `auth.require_permission(operation)` first. If access is denied, it raises `PermissionError` and also writes the failure to the audit log.
+I used a `__setattr__` guard in `DigitalID` instead of freezing the whole dataclass because some lifecycle fields must still update.
 
----
+## 7) Audit logging
 
-## Immutability enforcement
+`AuditLog` is append-only.
 
-Core identity fields are immutable in `DigitalID` by blocking reassignment after creation. This still protects the data even if someone tries to bypass service methods.
+Every action writes:
 
-Immutable fields: `id_number`, `full_name`, `date_of_birth`, `nationality`, `created_date`.
+- timestamp
+- organisation
+- operation name
+- ID number
+- details
+- success/failure
 
-Mutable fields (`address`, `email`, `status`, `has_restriction`, `suspension_history`) are still changed by service methods so that permission checks and audit entries stay in one place.
+`AuditEntry` is frozen, so old entries cannot be edited.
 
-I used a lightweight `__setattr__` guard instead of a fully frozen dataclass because lifecycle fields still need to change.
+## 8) Validation and config
 
----
+Input validation happens before data is stored (`validators.py`).
 
-## Audit trail
+Limits and regex rules are kept in `SYSTEM_CONSTANTS` inside `config.py`, so I do not hard-code values across multiple files.
 
-`AuditLog` is append-only. Every operation (successful or failed) writes a timestamped entry with organisation, operation, affected ID, details, and success flag. That gives traceability required in the brief.
-
-Each `AuditEntry` is immutable (`@dataclass(frozen=True)`), so log entries cannot be edited after they are recorded.
-
----
-
-## Input validation
-
-Six validator functions in `validators.py` check inputs before anything is stored. Limits (name length, email regex, and so on) live in `SYSTEM_CONSTANTS` in `config.py`.
-
-For tax-history checks, `VerificationService.verify_with_history(...)` also validates the period (`start <= end` and both values are `date` objects).
-
----
-
-## Configuration externalisation
-
-Constants and permission rules live in `config.py`. Services avoid hard-coded limits and rely on config plus `OrganisationAuth`.
+For `verify_with_history(...)`, the date range is also validated (`start <= end`, proper `date` values).
 

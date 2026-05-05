@@ -1,4 +1,4 @@
-"""Project settings for permissions and validation limits."""
+"""Shared settings for permissions and validation limits."""
 
 from src.models.digital_id import OrganisationType
 
@@ -30,5 +30,5 @@ SYSTEM_CONSTANTS: dict[str, int | str] = {
 
 
 def get_permissions(org_type: OrganisationType) -> set[str]:
-    """Return the set of allowed operations for an organisation type."""
+    """Look up which operations an organisation type is allowed to run."""
     return ORGANISATION_PERMISSIONS.get(org_type, set())

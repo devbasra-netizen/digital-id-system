@@ -1,28 +1,28 @@
-"""Custom exceptions used in this Digital ID project."""
+"""Project-specific exceptions for the Digital ID system."""
 
 import builtins
 
 
 class DigitalIDError(Exception):
-    """Base exception for all Digital ID system errors."""
+    """Base class for system-specific errors."""
     pass
 
 
 class ValidationError(DigitalIDError, ValueError):
-    """Raised when input data fails validation."""
+    """Raised when input values do not pass checks."""
     pass
 
 
 class InvalidOperationError(DigitalIDError, ValueError):
-    """Raised when an operation conflicts with the current ID state."""
+    """Raised when the requested action is not valid for current state."""
     pass
 
 
 class PermissionError(DigitalIDError, builtins.PermissionError):
-    """Raised when an organisation is not authorised for an operation."""
+    """Raised when an organisation is not allowed to do an operation."""
     pass
 
 
 class IDNotFoundError(DigitalIDError, KeyError):
-    """Raised when a Digital ID cannot be found."""
+    """Raised when an ID number does not exist in the store."""
     pass

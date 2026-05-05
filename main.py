@@ -1,4 +1,4 @@
-"""Console demo script for the coursework scenarios."""
+"""Small demo script I used to show the coursework features."""
 from datetime import date
 from src.platform import DigitalIDPlatform
 from src.models.digital_id import OrganisationType, IDStatus
@@ -7,21 +7,21 @@ from src.exceptions import ValidationError, InvalidOperationError, PermissionErr
 
 
 def section(title: str) -> None:
-    """Print a formatted section header."""
-    print(f"\n{'─' * 70}")
+    """Print a basic section header for demo output."""
+    print(f"\n{'-' * 70}")
     print(f"  {title}")
-    print(f"{'─' * 70}")
+    print(f"{'-' * 70}")
 
 
 def demo_line(message: str) -> None:
-    """Print a demo output line."""
-    print(f"  → {message}")
+    """Print one demo line with a small marker."""
+    print(f"  -> {message}")
 
 
 def main():
     platform = DigitalIDPlatform()
 
-    # ── Organizations ────────────────────────────────────────────────
+    # Organisations used in the examples below.
     home_ministry = OrganisationAuth(OrganisationType.CENTRAL_AUTHORITY, "Home Ministry")
     hmrc = OrganisationAuth(OrganisationType.TAX_AUTHORITY, "HMRC")
     dvla = OrganisationAuth(OrganisationType.DRIVING_LICENCE_AUTHORITY, "DVLA")
@@ -34,7 +34,7 @@ def main():
     print("=" * 70)
     print("   Running key features and rule checks")
 
-    # ── 1. Create identities ─────────────────────────────────────────
+    # 1) Create sample IDs
     section("1. Creating Digital IDs (Central Authority Only)")
     try:
         alice = platform.identity.create_digital_id(
@@ -57,10 +57,10 @@ def main():
     except (ValidationError, PermissionError) as e:
         demo_line(f"Error: {e}")
 
-    # ── 2. Input validation demonstration ────────────────────────────
+    # 2) Show validation failures
     section("2. Input Validation")
     try:
-        # Try invalid email
+        # Invalid email example
         platform.identity.create_digital_id(
             home_ministry, "ID004", "David Invalid",
             date(1995, 1, 1), "British", "123 St", "not-an-email"
@@ -69,7 +69,7 @@ def main():
         demo_line(f"Email validation caught (expected): {type(e).__name__}")
 
     try:
-        # Try future date of birth
+        # Future date of birth example
         platform.identity.create_digital_id(
             home_ministry, "ID005", "Eve Future",
             date(2030, 1, 1), "British", "123 St", "eve@test.com"
@@ -77,10 +77,10 @@ def main():
     except ValidationError as e:
         demo_line(f"Date validation caught (expected): {type(e).__name__}")
 
-    # ── 3. Permission enforcement ────────────────────────────────────
+    # 3) Permission checks
     section("3. Permission Enforcement")
     try:
-        # Bank cannot create IDs
+        # Bank role is not allowed to create IDs
         platform.identity.create_digital_id(
             barclays, "ID100", "Frank Faker",
             date(1980, 1, 1), "British", "123 St", "frank@test.com"
@@ -88,14 +88,14 @@ def main():
     except PermissionError as e:
         demo_line(f"Creation rejected (only Central Authority): {type(e).__name__}")
 
-    # ── 4. Status lifecycle transitions ───────────────────────────────
+    # 4) Status changes
     section("4. Digital ID Status Lifecycle")
     demo_line(f"Alice initial status: {alice.status.value}")
 
     platform.identity.activate_id(home_ministry, "ID001")
     demo_line(f"After activate: {alice.status.value}")
 
-    platform.identity.activate_id(home_ministry, "ID001")  # Idempotent
+    platform.identity.activate_id(home_ministry, "ID001")  # no-op on repeat call
     demo_line(f"Activate again (idempotent): {alice.status.value}")
 
     platform.identity.suspend_id(home_ministry, "ID001")
@@ -104,11 +104,11 @@ def main():
     platform.identity.reinstate_id(home_ministry, "ID001")
     demo_line(f"After reinstate: {alice.status.value}")
 
-    # Activate others for verification demos
+    # Activate others for verification examples
     platform.identity.activate_id(home_ministry, "ID002")
     platform.identity.activate_id(home_ministry, "ID003")
 
-    # ── 5. Basic verification ────────────────────────────────────────
+    # 5) Basic verification
     section("5. Basic Verification (Banks, Employers)")
     result = platform.verification.verify_basic(barclays, "ID001")
     demo_line(f"Barclays verifies Alice: {result.is_valid} ({result.message})")
@@ -119,7 +119,7 @@ def main():
     result = platform.verification.verify_basic(welfare, "ID003")
     demo_line(f"DWP verifies Charlie: {result.is_valid} ({result.message})")
 
-    # ── 6. Mutable attribute updates ──────────────────────────────────
+    # 6) Update mutable fields
     section("6. Updating Mutable Attributes")
     demo_line(f"Alice's original address: {alice.address}")
 
@@ -129,7 +129,7 @@ def main():
     platform.identity.update_email(home_ministry, "ID001", "alice.smith@newdomain.co.uk")
     demo_line(f"Alice's new email: {alice.email}")
 
-    # ── 7. Restrictions and DVLA verification ────────────────────────
+    # 7) Restriction flag and DVLA checks
     section("7. Restriction Flags (DVLA Check)")
     result = platform.verification.verify_with_restriction_check(dvla, "ID001")
     demo_line(f"DVLA: Alice (no restriction): {result.is_valid}")
@@ -140,7 +140,7 @@ def main():
 
     platform.identity.set_restriction(home_ministry, "ID001", False)
 
-    # ── 8. Suspension history and tax verification ───────────────────
+    # 8) Suspension history and HMRC checks
     section("8. Suspension History (Tax Compliance Checks)")
     demo_line(f"Bob's suspension history before: {len(bob.suspension_history)} records")
 
@@ -153,14 +153,14 @@ def main():
     demo_line(f"HMRC: Bob suspended during 2026: {result.is_valid}")
 
     platform.identity.reinstate_id(home_ministry, "ID002")
-    demo_line(f"Bob re-instated on {bob.suspension_history[-1][1]} (suspension closed)")
+    demo_line(f"Bob reinstated on {bob.suspension_history[-1][1]} (suspension closed)")
 
     result = platform.verification.verify_with_history(
         hmrc, "ID002", date(2026, 1, 1), date(2026, 12, 31)
     )
     demo_line(f"HMRC: Bob after reinstate: {result.is_valid}")
 
-    # ── 9. Terminal state (REVOKE) ───────────────────────────────────
+    # 9) Revoke terminal state
     section("9. Revoke (Terminal State)")
     demo_line(f"Charlie status before revoke: {charlie.status.value}")
 
@@ -178,7 +178,7 @@ def main():
     except InvalidOperationError as e:
         demo_line(f"  Activate rejected: {type(e).__name__}")
 
-    # ── 10. Search and query capabilities ────────────────────────────
+    # 10) Query helper methods
     section("10. Search and query examples")
     demo_line(f"Total Digital IDs in system: {platform.identity.count_ids()}")
 
@@ -191,23 +191,23 @@ def main():
     smith_ids = platform.identity.find_ids_by_name("Smith")
     demo_line(f"IDs matching name pattern 'Smith': {[id.full_name for id in smith_ids]}")
 
-    # ── 11. Permission-based access examples ─────────────────────────
+    # 11) More permission examples
     section("11. Verification permissions")
     try:
-        # HMRC cannot do basic verification
+        # HMRC role cannot use basic verification
         platform.verification.verify_basic(hmrc, "ID001")
     except PermissionError:
         demo_line("HMRC cannot use basic verify: Permission denied")
 
     try:
-        # Bank cannot do history verification
+        # Bank role cannot use history verification
         platform.verification.verify_with_history(
             barclays, "ID001", date(2026, 1, 1), date(2026, 12, 31)
         )
     except PermissionError:
         demo_line("Barclays cannot use history verify: Permission denied")
 
-    # ── 12. Full audit trail ─────────────────────────────────────────
+    # 12) Print full audit trail
     section("12. Full Audit Trail")
     total_entries = len(platform.audit.get_all_entries())
     demo_line(f"Total audit entries recorded: {total_entries}")
