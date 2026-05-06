@@ -1,0 +1,32 @@
+name: Release Bundle
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create source bundle
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz --output=dist/digital-id-system-${GITHUB_REF_NAME:-manual}.tar.gz HEAD
+
+      - name: Upload source bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digital-id-system-bundle
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
