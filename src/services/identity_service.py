@@ -1,9 +1,8 @@
-"""
-Identity Service — manages Digital ID lifecycle operations.
+"""Identity Service: Digital ID lifecycle operations.
 
-Only the central authority may create, update, or change the status of
-Digital IDs.  All operations are validated, permission-checked, and
-recorded in the audit log.
+Only the central authority can create, update, or change the status of a
+Digital ID. Every operation is permission-checked, validated, and logged
+to the audit trail (including failures).
 """
 
 from datetime import date
@@ -24,18 +23,17 @@ from src.validators import (
 
 
 class IdentityService:
-    """
-    Handles Digital ID lifecycle: create, activate, suspend, reinstate,
-    revoke, and attribute updates.
+    """Lifecycle operations for Digital IDs.
 
-    Status transitions:
-        PENDING -> ACTIVE -> SUSPENDED -> ACTIVE (reinstate)
-        Any non-revoked state -> REVOKED (terminal)
+    Status flow:
+        PENDING -> ACTIVE <-> SUSPENDED
+        any non-revoked state -> REVOKED  (terminal)
 
-    Rules:
+    A few rules worth calling out:
         - suspend_id only accepts ACTIVE IDs
         - activate_id is idempotent for ACTIVE IDs
         - revoke_id is idempotent for REVOKED IDs
+        - revoked IDs cannot be updated or transitioned again
     """
 
     def __init__(self, audit_log: AuditLog) -> None:
@@ -44,11 +42,10 @@ class IdentityService:
 
     @property
     def identities(self) -> Dict[str, DigitalID]:
-        """Expose the identity store so VerificationService can read it."""
+        """Read-only handle to the identity store, used by VerificationService."""
         return self._identities
 
     def _get_id_or_raise(self, id_number: str) -> DigitalID:
-        """Look up an ID or raise IDNotFoundError."""
         if id_number not in self._identities:
             raise IDNotFoundError(f"Digital ID '{id_number}' does not exist.")
         return self._identities[id_number]
@@ -73,11 +70,10 @@ class IdentityService:
         address: str,
         email: str,
     ) -> DigitalID:
-        """
-        Create a new Digital ID in PENDING status.
+        """Create a new Digital ID in PENDING status.
 
-        Validates all inputs, checks for duplicate ID numbers, and records the
-        operation in the audit log.  Only the Central Authority may call this.
+        Validates every input before mutating state, rejects duplicates, and
+        logs the outcome. Only the Central Authority is authorised.
         """
         try:
             auth.require_permission("create_id")
@@ -86,7 +82,6 @@ class IdentityService:
                                f"Failed: {str(e)}", False)
             raise
 
-        # Validate all inputs before mutating state.
         try:
             validate_id_number(id_number)
             validate_name(full_name, "Full name")
@@ -117,7 +112,7 @@ class IdentityService:
         return digital_id
 
     def activate_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
-        """Set a PENDING or SUSPENDED ID to ACTIVE.  Idempotent if already ACTIVE."""
+        """Move a PENDING or SUSPENDED ID to ACTIVE. Idempotent if already ACTIVE."""
         try:
             auth.require_permission("change_status")
         except PermissionError as e:
@@ -143,7 +138,7 @@ class IdentityService:
         return digital_id
 
     def suspend_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
-        """Suspend an ACTIVE ID and open a new suspension-history record."""
+        """Suspend an ACTIVE ID and open a new entry in suspension_history."""
         try:
             auth.require_permission("change_status")
         except PermissionError as e:
@@ -157,11 +152,6 @@ class IdentityService:
             self._audit.record(auth.org_name, "SUSPEND_ID", id_number,
                                "Failed: Cannot suspend a revoked ID.", False)
             raise InvalidOperationError(f"Cannot suspend a revoked Digital ID '{id_number}'.")
-
-        if digital_id.status == IDStatus.SUSPENDED:
-            self._audit.record(auth.org_name, "SUSPEND_ID", id_number,
-                               "Failed: ID is already SUSPENDED.", False)
-            raise InvalidOperationError("Can only suspend an ACTIVE Digital ID.")
 
         if digital_id.status != IDStatus.ACTIVE:
             self._audit.record(
@@ -194,7 +184,7 @@ class IdentityService:
                 f"Current: {digital_id.status.value}.", False)
             raise InvalidOperationError("Can only reinstate a SUSPENDED Digital ID.")
 
-        # Close the open suspension record
+        # Close the still-open suspension record before flipping back to ACTIVE.
         if digital_id.suspension_history and digital_id.suspension_history[-1][1] is None:
             start = digital_id.suspension_history[-1][0]
             digital_id.suspension_history[-1] = (start, date.today())
@@ -205,7 +195,7 @@ class IdentityService:
         return digital_id
 
     def revoke_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
-        """Permanently revoke a Digital ID — this is a terminal state."""
+        """Permanently revoke a Digital ID. Terminal state."""
         try:
             auth.require_permission("change_status")
         except PermissionError as e:
@@ -220,7 +210,7 @@ class IdentityService:
                                "No change: already REVOKED.", True)
             return digital_id
 
-        # Close any open suspension before revoking
+        # If currently suspended, close the open suspension period before revoking.
         if digital_id.suspension_history and digital_id.suspension_history[-1][1] is None:
             start = digital_id.suspension_history[-1][0]
             digital_id.suspension_history[-1] = (start, date.today())
@@ -288,7 +278,7 @@ class IdentityService:
 
     def set_restriction(self, auth: OrganisationAuth, id_number: str,
                         has_restriction: bool) -> DigitalID:
-        """Set or clear a restriction flag on a Digital ID."""
+        """Set or clear a restriction flag (used by DVLA-style checks)."""
         try:
             auth.require_permission("update_id")
         except PermissionError as e:
@@ -308,27 +298,23 @@ class IdentityService:
                            f"Restriction set to {has_restriction}.", True)
         return digital_id
 
-    # -- Search / query methods --
+    # Query helpers
 
     def find_ids_by_name(self, name_pattern: str) -> List[DigitalID]:
-        """Find all Digital IDs matching a name pattern (case-insensitive substring match)."""
+        """Case-insensitive substring match on full name."""
         pattern_lower = name_pattern.lower()
         return [d for d in self._identities.values()
                 if pattern_lower in d.full_name.lower()]
 
     def find_ids_by_status(self, status: IDStatus) -> List[DigitalID]:
-        """Find all Digital IDs with a specific status."""
         return [d for d in self._identities.values() if d.status == status]
 
     def find_ids_by_nationality(self, nationality: str) -> List[DigitalID]:
-        """Find all Digital IDs with a specific nationality."""
         return [d for d in self._identities.values()
                 if d.nationality == nationality]
 
     def get_all_ids(self) -> List[DigitalID]:
-        """Get all Digital IDs in the system."""
         return list(self._identities.values())
 
     def count_ids(self) -> int:
-        """Get the total count of Digital IDs in the system."""
         return len(self._identities)

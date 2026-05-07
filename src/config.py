@@ -1,8 +1,13 @@
-"""Shared settings for permissions and validation limits."""
+"""Permission matrix and validation limits.
+
+Keeping these in one place avoids hard-coding magic values across the
+service modules and makes the rules easy to inspect.
+"""
 
 from src.models.digital_id import OrganisationType
 
-# Maps each organisation type to the operations it is allowed to perform.
+
+# What each organisation type is allowed to do. Anything not listed is denied.
 ORGANISATION_PERMISSIONS: dict[OrganisationType, set[str]] = {
     OrganisationType.CENTRAL_AUTHORITY: {
         "create_id", "update_id", "change_status",
@@ -17,7 +22,8 @@ ORGANISATION_PERMISSIONS: dict[OrganisationType, set[str]] = {
     OrganisationType.IMMIGRATION: {"verify_basic", "verify_with_history"},
 }
 
-# Validation constants used by validators.py
+
+# Validation constants used by validators.py.
 SYSTEM_CONSTANTS: dict[str, int | str] = {
     "MIN_YEAR_OF_BIRTH": 1900,
     "MAX_AGE_YEARS": 150,
@@ -30,5 +36,5 @@ SYSTEM_CONSTANTS: dict[str, int | str] = {
 
 
 def get_permissions(org_type: OrganisationType) -> set[str]:
-    """Look up which operations an organisation type is allowed to run."""
+    """Return the set of operations an organisation type may perform."""
     return ORGANISATION_PERMISSIONS.get(org_type, set())

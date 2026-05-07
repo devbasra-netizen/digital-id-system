@@ -1,4 +1,4 @@
-"""Builds the platform object and links shared services together."""
+"""Wires the two services together over a single audit log and identity store."""
 
 from src.audit.audit_log import AuditLog
 from src.services.identity_service import IdentityService
@@ -6,10 +6,11 @@ from src.services.verification_service import VerificationService
 
 
 class DigitalIDPlatform:
-    """Main entry point used by tests and the demo script.
+    """Top-level handle used by the demo script and the test suite.
 
-    This class creates one audit log and one identity store, then gives both
-    to the identity and verification services.
+    One audit log and one identity store are created here and shared
+    between IdentityService and VerificationService, so writes done on
+    one side are immediately visible to the other.
     """
 
     def __init__(self) -> None:

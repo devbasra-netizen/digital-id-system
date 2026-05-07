@@ -1,6 +1,11 @@
-"""
-Verification Service — lets consuming organisations check Digital ID
-validity without modifying identity data.
+"""Verification Service: read-only checks for consuming organisations.
+
+This service does not modify identity data. It exposes three verification
+modes that match the scenarios described in the brief:
+
+    verify_basic                  - banks / employers (yes/no only)
+    verify_with_history           - tax authority (suspension period check)
+    verify_with_restriction_check - DVLA (status + restriction flag)
 """
 
 from datetime import date
@@ -14,7 +19,7 @@ from src.exceptions import IDNotFoundError, PermissionError, ValidationError
 
 @dataclass(frozen=True)
 class VerificationResult:
-    """Simple container for a verification outcome (valid/invalid + message)."""
+    """Outcome of a verification call: valid/invalid plus a short reason."""
 
     is_valid: bool
     message: str
@@ -25,19 +30,13 @@ class VerificationResult:
 
 
 class VerificationService:
-    """
-    Provides three verification modes for consuming organisations:
-        verify_basic              – Banks / Employers (yes/no only)
-        verify_with_history       – Tax Authority (checks suspension period)
-        verify_with_restriction   – DVLA (checks restriction flag)
-    """
+    """Three verification modes, all read-only and audit-logged."""
 
     def __init__(self, identities: Dict[str, DigitalID], audit_log: AuditLog) -> None:
         self._identities: Dict[str, DigitalID] = identities
         self._audit: AuditLog = audit_log
 
     def _lookup(self, id_number: str) -> DigitalID:
-        """Look up a Digital ID or raise IDNotFoundError."""
         if id_number not in self._identities:
             raise IDNotFoundError(f"Digital ID '{id_number}' not found.")
         return self._identities[id_number]
@@ -49,7 +48,7 @@ class VerificationService:
         period_start: date,
         period_end: date,
     ) -> None:
-        """Reject invalid reporting periods before verification logic runs."""
+        """Reject malformed reporting periods before doing any lookup."""
         if not isinstance(period_start, date) or not isinstance(period_end, date):
             message = "Reporting period dates must be date objects."
             self._audit.record(auth.org_name, "VERIFY_WITH_HISTORY", id_number, message, False)
@@ -61,7 +60,7 @@ class VerificationService:
             raise ValidationError(message)
 
     def verify_basic(self, auth: OrganisationAuth, id_number: str) -> VerificationResult:
-        """Return valid only if the ID exists and is currently ACTIVE."""
+        """Valid only if the ID exists and is currently ACTIVE."""
         try:
             auth.require_permission("verify_basic")
         except PermissionError as e:
@@ -87,7 +86,7 @@ class VerificationService:
         period_start: date,
         period_end: date,
     ) -> VerificationResult:
-        """Check the ID is ACTIVE and was not suspended during the given period."""
+        """ID must be ACTIVE and not have been suspended at any point in the period."""
         try:
             auth.require_permission("verify_with_history")
         except PermissionError as e:
@@ -121,7 +120,7 @@ class VerificationService:
     def verify_with_restriction_check(
         self, auth: OrganisationAuth, id_number: str
     ) -> VerificationResult:
-        """Check the ID is ACTIVE and has no restriction flag set."""
+        """ID must be ACTIVE and have no restriction flag set."""
         try:
             auth.require_permission("verify_with_restriction")
         except PermissionError as e:
@@ -142,10 +141,10 @@ class VerificationService:
             return VerificationResult(False, message)
 
         if digital_id.has_restriction:
-            message = "ID is active but has a restriction flag — eligibility conditions not met."
+            message = "ID is active but has a restriction flag; eligibility conditions not met."
             self._audit.record(auth.org_name, "VERIFY_WITH_RESTRICTION", id_number, message, False)
             return VerificationResult(False, message)
 
-        message = "ID is active with no restrictions — eligibility confirmed."
+        message = "ID is active with no restrictions; eligibility confirmed."
         self._audit.record(auth.org_name, "VERIFY_WITH_RESTRICTION", id_number, message, True)
         return VerificationResult(True, message)

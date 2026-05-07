@@ -1,4 +1,4 @@
-"""Validation helpers run before any ID data is stored."""
+"""Input validation helpers, run before any data is stored or updated."""
 
 import re
 from datetime import date
@@ -7,7 +7,7 @@ from src.config import SYSTEM_CONSTANTS
 
 
 def validate_id_number(id_number: str) -> None:
-    """ID number must be a non-empty string up to 50 chars."""
+    """Non-empty string, up to 50 characters."""
     if not id_number or not isinstance(id_number, str):
         raise ValidationError("ID number cannot be empty or null.")
     if len(id_number.strip()) == 0:
@@ -17,7 +17,7 @@ def validate_id_number(id_number: str) -> None:
 
 
 def validate_name(name: str, field_name: str = "Name") -> None:
-    """Name must be within configured min/max length."""
+    """Within the configured min/max length range."""
     if not name or not isinstance(name, str):
         raise ValidationError(f"{field_name} cannot be empty or null.")
     if len(name.strip()) == 0:
@@ -33,7 +33,7 @@ def validate_name(name: str, field_name: str = "Name") -> None:
 
 
 def validate_email(email: str) -> None:
-    """Email must match the regex in SYSTEM_CONSTANTS."""
+    """Match the regex defined in SYSTEM_CONSTANTS."""
     if not email or not isinstance(email, str):
         raise ValidationError("Email cannot be empty or null.")
     if len(email.strip()) == 0:
@@ -45,7 +45,7 @@ def validate_email(email: str) -> None:
 
 
 def validate_address(address: str) -> None:
-    """Address must be within configured min/max length."""
+    """Within the configured min/max length range."""
     if not address or not isinstance(address, str):
         raise ValidationError("Address cannot be empty or null.")
     if len(address.strip()) == 0:
@@ -61,7 +61,7 @@ def validate_address(address: str) -> None:
 
 
 def validate_date_of_birth(date_of_birth: date) -> None:
-    """DOB must be a date, not in the future, and in allowed age range."""
+    """Real date, not in the future, and within the allowed age range."""
     if not isinstance(date_of_birth, date):
         raise ValidationError("Date of birth must be a valid date object.")
 
@@ -84,7 +84,7 @@ def validate_date_of_birth(date_of_birth: date) -> None:
 
 
 def validate_nationality(nationality: str) -> None:
-    """Nationality must be a non-empty string up to 100 chars."""
+    """Non-empty string, up to 100 characters."""
     if not nationality or not isinstance(nationality, str):
         raise ValidationError("Nationality cannot be empty or null.")
     if len(nationality.strip()) == 0:
