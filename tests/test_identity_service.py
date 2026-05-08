@@ -1,12 +1,20 @@
+"""Tests for IdentityService: lifecycle, updates, queries, audit hooks."""
+
 import pytest
 from datetime import date
+
 from src.platform import DigitalIDPlatform
 from src.models.digital_id import IDStatus, OrganisationType
 from src.auth.organisation_auth import OrganisationAuth
-from src.exceptions import InvalidOperationError, PermissionError, IDNotFoundError, ValidationError
+from src.exceptions import (
+    InvalidOperationError,
+    PermissionError,
+    IDNotFoundError,
+    ValidationError,
+)
 
 
-# ── Fixtures ─────────────────────────────────────────────────────────────────
+# Fixtures
 
 @pytest.fixture
 def platform():
@@ -37,7 +45,7 @@ def active_id(platform, central, pending_id):
     return pending_id
 
 
-# ── Create ────────────────────────────────────────────────────────────────────
+# Creation
 
 class TestCreateDigitalID:
 
@@ -96,7 +104,7 @@ class TestCreateDigitalID:
         assert "valid format" in failed[-1].details
 
 
-# ── Status Transitions ────────────────────────────────────────────────────────
+# Status transitions
 
 class TestStatusTransitions:
 
@@ -152,11 +160,11 @@ class TestStatusTransitions:
     def test_suspension_closed_on_reinstate(self, platform, central, active_id):
         platform.identity.suspend_id(central, active_id.id_number)
         platform.identity.reinstate_id(central, active_id.id_number)
-        start, end = active_id.suspension_history[0]
+        _, end = active_id.suspension_history[0]
         assert end is not None
 
 
-# ── Updates ───────────────────────────────────────────────────────────────────
+# Updates and permission checks on writes
 
 class TestUpdateOperations:
 
@@ -246,6 +254,8 @@ class TestUpdateOperations:
         assert failed[-1].id_number == "MISSING-2"
 
 
+# Query helpers
+
 class TestQueryMethods:
 
     def test_find_ids_by_name_is_case_insensitive_substring(self, platform, central):
@@ -315,6 +325,8 @@ class TestQueryMethods:
         all_ids = platform.identity.get_all_ids()
         assert sorted(d.id_number for d in all_ids) == sorted(d.id_number for d in created)
 
+
+# Boundary cases for the suspension overlap check
 
 class TestSuspensionOverlapBoundaries:
 

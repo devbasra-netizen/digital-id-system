@@ -1,4 +1,4 @@
-"""Tests for the AuditLog module."""
+"""Tests for the AuditLog: recording, querying, and immutability."""
 
 import pytest
 from src.audit.audit_log import AuditLog

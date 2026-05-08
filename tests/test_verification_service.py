@@ -1,12 +1,15 @@
+"""Tests for VerificationService: the three verification modes."""
+
 import pytest
 from datetime import date
+
 from src.platform import DigitalIDPlatform
 from src.models.digital_id import OrganisationType
 from src.auth.organisation_auth import OrganisationAuth
 from src.exceptions import PermissionError, ValidationError
 
 
-# ── Fixtures ─────────────────────────────────────────────────────────────────
+# Fixtures
 
 @pytest.fixture
 def platform():
@@ -48,7 +51,7 @@ def active_id(platform, central):
     return digital_id
 
 
-# ── Basic Verification ────────────────────────────────────────────────────────
+# Basic verification (banks, employers, welfare, local authority)
 
 class TestBasicVerification:
 
@@ -95,7 +98,7 @@ class TestBasicVerification:
         assert "VALID" in repr(result)
 
 
-# ── History Verification ──────────────────────────────────────────────────────
+# History verification (HMRC reporting period)
 
 class TestHistoryVerification:
 
@@ -160,7 +163,7 @@ class TestHistoryVerification:
         assert failed[-1].id_number == "MISSING-HISTORY"
 
 
-# ── Restriction Verification ──────────────────────────────────────────────────
+# Restriction verification (DVLA eligibility check)
 
 class TestRestrictionVerification:
 
