@@ -1,68 +1,87 @@
 # Design Notes
 
-This file explains the main design choices I made for the coursework.
+These are the main design choices I made and the reasoning behind them.
+The brief explicitly separates identity *management* from identity
+*consumption*, so most of the structure here falls out of taking that
+distinction seriously.
 
-## 1) Two services instead of one
+## 1. Two services, one shared store
 
-I split the logic into:
+I split the logic into two services rather than one:
 
-- `IdentityService` for Central Authority actions (create/update/change status)
-- `VerificationService` for organisations that only need to check IDs
+- `IdentityService` - everything the central authority does
+  (create, update, change status).
+- `VerificationService` - everything consuming organisations do
+  (the three verification modes).
 
-This matches the brief and keeps write actions separate from read/verify actions.
+`DigitalIDPlatform` constructs both services and hands them the same
+in-memory identity store and the same audit log. That keeps the read and
+write paths conceptually separate while still operating on the same
+underlying data, which is closer in spirit to a CQRS-style split than
+to a traditional layered design.
 
-Both services are connected by `DigitalIDPlatform`, which gives them the same in-memory ID store and the same audit log.
+I considered putting it all behind a single `DigitalIDService`, but the
+brief is firm that "identity management ... and identity consumption ...
+must be handled separately by the system", so the split was the right
+call.
 
-## 2) Dependency injection for easier testing
+## 2. Dependency injection over module globals
 
-I pass shared objects (like `AuditLog`) into service constructors instead of creating them inside each method.
+Both services receive their `AuditLog` (and the identity store, in the
+case of verification) through their constructors. There is no global
+registry and no singleton.
 
-Why I did this:
+Two reasons:
+1. Tests can spin up a brand-new platform per test (`DigitalIDPlatform()`
+   in a fixture) and not worry about state leaking across cases.
+2. It makes the dependencies of each class obvious from its signature.
 
-- tests can build a fresh platform each time
-- no hidden global state
-- easier to reason about what each service depends on
+## 3. Status lifecycle
 
-## 3) Status lifecycle rules
-
-The ID status flow is:
-
-```text
-PENDING -> ACTIVE <-> SUSPENDED -> REVOKED (final)
+```
+PENDING -> ACTIVE <-> SUSPENDED
+any non-revoked state -> REVOKED   (terminal)
 ```
 
-Rules implemented in service methods:
+Rules implemented in the service layer:
 
-- only `ACTIVE` IDs can be suspended
-- only `SUSPENDED` IDs can be reinstated
-- `REVOKED` is terminal (no more status changes or field updates)
-- suspend on already suspended ID raises `InvalidOperationError`
-- activate/revoke on same current state is idempotent
+- `suspend_id` only accepts `ACTIVE` IDs.
+- `activate_id` is idempotent if the ID is already `ACTIVE`.
+- `revoke_id` is idempotent if the ID is already `REVOKED`.
+- Once `REVOKED`, no further status changes or attribute updates are accepted.
 
-I store suspension periods as `(start_date, end_date)` tuples so history checks can test overlap with a date range.
+Suspension periods are stored as `(start_date, end_date | None)` tuples.
+A `None` end means the suspension is still open. That representation
+makes the overlap check in `was_suspended_during(...)` straightforward
+and keeps the history queryable for HMRC-style reporting.
 
-## 4) Exception structure
+## 4. Exception hierarchy
 
-I used a base `DigitalIDError`, then specific exceptions for validation, invalid operations, permissions, and missing IDs.
+There is a base `DigitalIDError`, with specific subclasses for
+validation, invalid operations, permissions, and missing IDs. Each one
+also inherits from a related Python built-in (`ValueError`,
+`PermissionError`, `KeyError`).
 
-Each one also inherits from a related Python built-in exception (`ValueError`, `PermissionError`, `KeyError`).
+That dual inheritance means callers have a choice: catch the
+project-specific class for precise handling, or fall back on the broad
+built-in if they don't need the distinction. I find it tidier than
+forcing every caller to learn a parallel exception vocabulary.
 
-That means callers can either catch project-specific exceptions or broad built-in types.
+## 5. Permission model
 
-## 5) Permission model
+Per-organisation permissions live in a dictionary in `config.py`. The
+`OrganisationAuth` wrapper exposes `can_perform(...)` and
+`require_permission(...)`. Every service method calls
+`require_permission` before doing anything else, and a denial both
+raises `PermissionError` *and* writes a failure entry to the audit log.
 
-Permissions are based on organisation type and are defined in `config.py`.
+Failed authorisation attempts are part of the trail an auditor would
+care about, so silently rejecting them would defeat the point of the
+audit log.
 
-Each service method checks permissions first with `auth.require_permission(...)`. If not allowed:
+## 6. Immutability of core identity fields
 
-- raise `PermissionError`
-- write a failed entry to the audit log
-
-So denied requests are still visible in logs.
-
-## 6) Data immutability
-
-Core identity fields are locked after creation:
+Five fields are locked once the record is constructed:
 
 - `id_number`
 - `full_name`
@@ -70,30 +89,57 @@ Core identity fields are locked after creation:
 - `nationality`
 - `created_date`
 
-Other fields (`address`, `email`, `status`, `has_restriction`, `suspension_history`) can change, but only through service methods, so checks + logging always happen.
+I implemented this with a custom `__setattr__` on `DigitalID` rather
+than freezing the whole dataclass, because some lifecycle fields
+(`status`, `suspension_history`, `address`, `email`,
+`has_restriction`) genuinely have to mutate. A `_is_initialized` flag
+flips on at the end of `__post_init__`, after which writes to immutable
+fields raise `AttributeError`.
 
-I used a `__setattr__` guard in `DigitalID` instead of freezing the whole dataclass because some lifecycle fields must still update.
+This catches programmer errors at the point they happen instead of
+quietly corrupting an identity record.
 
-## 7) Audit logging
+## 7. Audit log
 
-`AuditLog` is append-only.
-
-Every action writes:
+`AuditLog` is append-only - there is no `delete` or `update` method,
+and `AuditEntry` is a frozen dataclass so individual records can't be
+edited after the fact. Every operation, including failed ones, writes
+an entry containing:
 
 - timestamp
-- organisation
-- operation name
+- organisation name
+- operation
 - ID number
-- details
-- success/failure
+- a short details string
+- success / failure flag
 
-`AuditEntry` is frozen, so old entries cannot be edited.
+The query helpers (`get_failed_entries`,
+`get_entries_by_organisation`, etc.) are read-only views over the
+internal list.
 
-## 8) Validation and config
+## 8. Validation and config
 
-Input validation happens before data is stored (`validators.py`).
+All input validation happens in `validators.py` *before* anything is
+written to the store. Length limits and the email regex live in a
+single `SYSTEM_CONSTANTS` dictionary in `config.py` so the rules are in
+one place rather than scattered across modules.
 
-Limits and regex rules are kept in `SYSTEM_CONSTANTS` inside `config.py`, so I do not hard-code values across multiple files.
+`verify_with_history(...)` also validates its date range before doing
+the lookup: dates must be `date` objects and `start <= end`. A bad
+range is rejected with a `ValidationError` and recorded as a failure in
+the audit log.
 
-For `verify_with_history(...)`, the date range is also validated (`start <= end`, proper `date` values).
+## 9. What I deliberately left out
 
+- **Persistence.** The brief says console-based backend, no UI or
+  framework, so the in-memory store is appropriate for the scope.
+  Adding SQLite would bring infrastructure concerns the assessment is
+  not asking about.
+- **Concurrency.** Single-threaded, single-process. The brief does not
+  require it and adding locks would obscure the lifecycle logic.
+- **A network layer.** Same reason - the brief explicitly says no web
+  layer.
+
+The architecture (DI, two services over a shared store, audit log as a
+collaborator rather than a side effect) would still hold up if any of
+these were added later.
