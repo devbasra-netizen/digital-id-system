@@ -1,15 +1,15 @@
 # Digital ID System
 
-This is my IOT452U coursework project. I built it in Python to model a digital ID platform where one central authority manages IDs and other organisations verify them.
+IOT452U coursework. A console-based backend in Python that models a
+federated digital ID platform: a single central authority manages the
+identities, and other organisations (HMRC, DVLA, banks, employers,
+welfare, etc.) verify them through role-specific operations.
 
-## Quick start
+GitHub: https://github.com/devbasra-netizen/digital-id-system
 
-### What you need
+## Running it
 
-- Python 3.12+
-- pip
-
-### Install
+You need Python 3.12+ and pip.
 
 ```bash
 git clone https://github.com/devbasra-netizen/digital-id-system.git
@@ -17,82 +17,109 @@ cd digital-id-system
 pip install -r requirements.txt
 ```
 
-### Run demo script
+Run the demo, which walks through every capability end-to-end:
 
 ```bash
 python main.py
 ```
 
-The script runs through creation, status changes, verification checks, permission failures, updates, and audit log output.
-
-### Run tests
+Run the test suite (pytest, coverage report goes to the terminal):
 
 ```bash
 pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
-### Optional lint/type checks
+Lint and type checks (optional, but they're part of CI):
 
 ```bash
 flake8 src tests --max-line-length=100
 mypy src
 ```
 
-## Project layout
+## Layout
 
-```text
+```
 digital-id-system/
 ├── src/
-│   ├── models/digital_id.py
-│   ├── auth/organisation_auth.py
-│   ├── services/identity_service.py
-│   ├── services/verification_service.py
-│   ├── audit/audit_log.py
-│   ├── exceptions.py
-│   ├── validators.py
-│   ├── config.py
-│   └── platform.py
-├── tests/
-├── main.py
-├── DESIGN.md
+│   ├── models/digital_id.py         # DigitalID dataclass, IDStatus, OrganisationType
+│   ├── auth/organisation_auth.py    # Permission wrapper for callers
+│   ├── services/
+│   │   ├── identity_service.py      # Lifecycle: create / update / status changes
+│   │   └── verification_service.py  # The three verification modes
+│   ├── audit/audit_log.py           # Append-only audit trail
+│   ├── exceptions.py                # Custom exception hierarchy
+│   ├── validators.py                # Input validation helpers
+│   ├── config.py                    # Permission matrix + validation limits
+│   └── platform.py                  # Wires the services together
+├── tests/                           # pytest suite (~115 tests)
+├── .github/workflows/               # CI, security audit, release bundle
+├── main.py                          # Console demo
+├── DESIGN.md                        # Design rationale
+├── USER_STORIES.md                  # Backlog and per-iteration delivery
 └── requirements.txt
 ```
 
-## Main behaviour
+## How the system behaves
 
-### ID lifecycle
+### Lifecycle
 
-```text
+```
 PENDING -> ACTIVE <-> SUSPENDED
-any non-revoked state -> REVOKED (final)
+any non-revoked state -> REVOKED   (terminal)
 ```
 
-- Immutable fields: `id_number`, `full_name`, `date_of_birth`, `nationality`, `created_date`
-- Mutable fields: `address`, `email`, `has_restriction`
-- Suspension history stores start/end dates
+- Immutable after creation: `id_number`, `full_name`, `date_of_birth`,
+  `nationality`, `created_date`.
+- Mutable through `IdentityService` only: `address`, `email`, `status`,
+  `has_restriction`, `suspension_history`.
+- Suspensions are stored as `(start, end | None)` tuples so the history
+  is queryable for reporting periods.
 
-### Organisation permissions
+### Who can do what
 
-- Central Authority can create, update, and change status
-- Other organisation types can verify based on their allowed mode
+`config.py` holds the permission matrix. Every service method calls
+`auth.require_permission(...)` first; a denial raises `PermissionError`
+and writes a failure entry to the audit log.
+
+| Role | Allowed |
+|---|---|
+| Central Authority | create, update, change status, all verify modes |
+| Tax Authority (HMRC) | `verify_with_history` |
+| Driving Licence Authority (DVLA) | `verify_with_restriction` |
+| Bank, Employer, Welfare, Local Authority | `verify_basic` |
+| Immigration | `verify_basic`, `verify_with_history` |
 
 ### Verification modes
 
-- `verify_basic`: checks if ID is currently `ACTIVE`
-- `verify_with_history`: checks active status and suspension overlap in a date range
-- `verify_with_restriction_check`: checks active status and restriction flag
+- `verify_basic` - is this ID currently `ACTIVE`? Yes/no.
+- `verify_with_history` - active *and* not suspended at any point during
+  a given reporting period.
+- `verify_with_restriction_check` - active *and* no restriction flag set.
 
-### Audit logging
+### Audit log
 
-Every request is logged as success/failure with timestamp, organisation, operation, ID, and details.
+Every action (success or failure) is appended to a frozen `AuditEntry`
+with timestamp, organisation, operation, ID number, details, and a
+success flag. The log itself only exposes append + query helpers, so
+historical entries cannot be edited or deleted.
 
-## Testing notes
+## Tests
 
-- `tests/test_identity_service.py`: lifecycle, updates, searching, permission checks
-- `tests/test_verification_service.py`: verification rules by organisation type
-- `tests/test_validation.py`: validator limits and invalid inputs
-- `tests/test_audit_log.py`: audit entry recording and filtering
+```
+tests/test_identity_service.py     - lifecycle, updates, queries, audit hooks
+tests/test_verification_service.py - the three verification modes
+tests/test_validation.py           - validator edge cases
+tests/test_audit_log.py            - audit recording, querying, immutability
+```
+
+CI (`.github/workflows/ci.yml`) runs flake8, mypy, and pytest on every
+push and pull request, against Python 3.11 and 3.12, with a 90%
+coverage gate. There's also a weekly `pip-audit` security scan and a
+release-bundle workflow that produces a tarball on tag push.
 
 ## Design write-up
 
-More detail on decisions and trade-offs is in `DESIGN.md`.
+Longer-form rationale (why two services, why the immutability guard,
+exception hierarchy choices, what was deliberately left out) is in
+[DESIGN.md](DESIGN.md). The development backlog and per-iteration
+delivery is in [USER_STORIES.md](USER_STORIES.md).
