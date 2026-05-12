@@ -36,6 +36,23 @@ class VerificationService:
         self._identities: Dict[str, DigitalID] = identities
         self._audit: AuditLog = audit_log
 
+    # Internal helpers
+
+    def _check_permission(
+        self,
+        auth: OrganisationAuth,
+        permission: str,
+        operation: str,
+        id_number: str,
+    ) -> None:
+        """Authorise a call, recording the failure path before re-raising."""
+        try:
+            auth.require_permission(permission)
+        except PermissionError as e:
+            self._audit.record(auth.org_name, operation, id_number,
+                               f"Unauthorized: {str(e)}", False)
+            raise
+
     def _lookup(self, id_number: str) -> DigitalID:
         if id_number not in self._identities:
             raise IDNotFoundError(f"Digital ID '{id_number}' not found.")
@@ -59,14 +76,11 @@ class VerificationService:
             self._audit.record(auth.org_name, "VERIFY_WITH_HISTORY", id_number, message, False)
             raise ValidationError(message)
 
+    # Public operations
+
     def verify_basic(self, auth: OrganisationAuth, id_number: str) -> VerificationResult:
         """Valid only if the ID exists and is currently ACTIVE."""
-        try:
-            auth.require_permission("verify_basic")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "VERIFY_BASIC", id_number,
-                               f"Unauthorized: {str(e)}", False)
-            raise
+        self._check_permission(auth, "verify_basic", "VERIFY_BASIC", id_number)
 
         try:
             digital_id = self._lookup(id_number)
@@ -87,13 +101,7 @@ class VerificationService:
         period_end: date,
     ) -> VerificationResult:
         """ID must be ACTIVE and not have been suspended at any point in the period."""
-        try:
-            auth.require_permission("verify_with_history")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "VERIFY_WITH_HISTORY", id_number,
-                               f"Unauthorized: {str(e)}", False)
-            raise
-
+        self._check_permission(auth, "verify_with_history", "VERIFY_WITH_HISTORY", id_number)
         self._validate_period(auth, id_number, period_start, period_end)
 
         try:
@@ -121,12 +129,8 @@ class VerificationService:
         self, auth: OrganisationAuth, id_number: str
     ) -> VerificationResult:
         """ID must be ACTIVE and have no restriction flag set."""
-        try:
-            auth.require_permission("verify_with_restriction")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "VERIFY_WITH_RESTRICTION", id_number,
-                               f"Unauthorized: {str(e)}", False)
-            raise
+        self._check_permission(auth, "verify_with_restriction",
+                               "VERIFY_WITH_RESTRICTION", id_number)
 
         try:
             digital_id = self._lookup(id_number)

@@ -45,6 +45,23 @@ class IdentityService:
         """Read-only handle to the identity store, used by VerificationService."""
         return self._identities
 
+    # Internal helpers
+
+    def _check_permission(
+        self,
+        auth: OrganisationAuth,
+        permission: str,
+        operation: str,
+        id_number: str,
+    ) -> None:
+        """Authorise a call, recording the failure path before re-raising."""
+        try:
+            auth.require_permission(permission)
+        except PermissionError as e:
+            self._audit.record(auth.org_name, operation, id_number,
+                               f"Failed: {str(e)}", False)
+            raise
+
     def _get_id_or_raise(self, id_number: str) -> DigitalID:
         if id_number not in self._identities:
             raise IDNotFoundError(f"Digital ID '{id_number}' does not exist.")
@@ -59,6 +76,17 @@ class IdentityService:
         except IDNotFoundError as e:
             self._audit.record(auth.org_name, operation, id_number, f"Failed: {str(e)}", False)
             raise
+
+    def _reject_revoked(
+        self, digital_id: DigitalID, auth: OrganisationAuth, operation: str, message: str,
+    ) -> None:
+        """Common guard: revoked IDs cannot be modified or transitioned."""
+        if digital_id.status == IDStatus.REVOKED:
+            self._audit.record(auth.org_name, operation, digital_id.id_number,
+                               f"Failed: {message}", False)
+            raise InvalidOperationError(message)
+
+    # Public operations
 
     def create_digital_id(
         self,
@@ -75,12 +103,7 @@ class IdentityService:
         Validates every input before mutating state, rejects duplicates, and
         logs the outcome. Only the Central Authority is authorised.
         """
-        try:
-            auth.require_permission("create_id")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "CREATE_ID", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
+        self._check_permission(auth, "create_id", "CREATE_ID", id_number)
 
         try:
             validate_id_number(id_number)
@@ -113,13 +136,7 @@ class IdentityService:
 
     def activate_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
         """Move a PENDING or SUSPENDED ID to ACTIVE. Idempotent if already ACTIVE."""
-        try:
-            auth.require_permission("change_status")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "ACTIVATE_ID", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
-
+        self._check_permission(auth, "change_status", "ACTIVATE_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "ACTIVATE_ID", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
@@ -139,13 +156,7 @@ class IdentityService:
 
     def suspend_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
         """Suspend an ACTIVE ID and open a new entry in suspension_history."""
-        try:
-            auth.require_permission("change_status")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "SUSPEND_ID", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
-
+        self._check_permission(auth, "change_status", "SUSPEND_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "SUSPEND_ID", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
@@ -168,13 +179,7 @@ class IdentityService:
 
     def reinstate_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
         """Re-activate a SUSPENDED ID and close the open suspension record."""
-        try:
-            auth.require_permission("change_status")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "REINSTATE_ID", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
-
+        self._check_permission(auth, "change_status", "REINSTATE_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "REINSTATE_ID", id_number)
 
         if digital_id.status != IDStatus.SUSPENDED:
@@ -196,13 +201,7 @@ class IdentityService:
 
     def revoke_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
         """Permanently revoke a Digital ID. Terminal state."""
-        try:
-            auth.require_permission("change_status")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "REVOKE_ID", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
-
+        self._check_permission(auth, "change_status", "REVOKE_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "REVOKE_ID", id_number)
 
         if digital_id.status == IDStatus.REVOKED:
@@ -222,12 +221,7 @@ class IdentityService:
 
     def update_address(self, auth: OrganisationAuth, id_number: str, new_address: str) -> DigitalID:
         """Update the mutable address attribute."""
-        try:
-            auth.require_permission("update_id")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "UPDATE_ADDRESS", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
+        self._check_permission(auth, "update_id", "UPDATE_ADDRESS", id_number)
 
         try:
             validate_address(new_address)
@@ -238,11 +232,8 @@ class IdentityService:
             raise
 
         digital_id = self._lookup_for_operation(auth, "UPDATE_ADDRESS", id_number)
-
-        if digital_id.status == IDStatus.REVOKED:
-            self._audit.record(auth.org_name, "UPDATE_ADDRESS", id_number,
-                               "Failed: Cannot update a revoked ID.", False)
-            raise InvalidOperationError("Cannot update a revoked Digital ID.")
+        self._reject_revoked(digital_id, auth, "UPDATE_ADDRESS",
+                             "Cannot update a revoked Digital ID.")
 
         digital_id.address = new_address
         self._audit.record(auth.org_name, "UPDATE_ADDRESS", id_number,
@@ -251,12 +242,7 @@ class IdentityService:
 
     def update_email(self, auth: OrganisationAuth, id_number: str, new_email: str) -> DigitalID:
         """Update the mutable email attribute."""
-        try:
-            auth.require_permission("update_id")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "UPDATE_EMAIL", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
+        self._check_permission(auth, "update_id", "UPDATE_EMAIL", id_number)
 
         try:
             validate_email(new_email)
@@ -265,11 +251,8 @@ class IdentityService:
             raise
 
         digital_id = self._lookup_for_operation(auth, "UPDATE_EMAIL", id_number)
-
-        if digital_id.status == IDStatus.REVOKED:
-            self._audit.record(auth.org_name, "UPDATE_EMAIL", id_number,
-                               "Failed: Cannot update a revoked ID.", False)
-            raise InvalidOperationError("Cannot update a revoked Digital ID.")
+        self._reject_revoked(digital_id, auth, "UPDATE_EMAIL",
+                             "Cannot update a revoked Digital ID.")
 
         digital_id.email = new_email
         self._audit.record(auth.org_name, "UPDATE_EMAIL", id_number,
@@ -279,19 +262,10 @@ class IdentityService:
     def set_restriction(self, auth: OrganisationAuth, id_number: str,
                         has_restriction: bool) -> DigitalID:
         """Set or clear a restriction flag (used by DVLA-style checks)."""
-        try:
-            auth.require_permission("update_id")
-        except PermissionError as e:
-            self._audit.record(auth.org_name, "SET_RESTRICTION", id_number,
-                               f"Failed: {str(e)}", False)
-            raise
-
+        self._check_permission(auth, "update_id", "SET_RESTRICTION", id_number)
         digital_id = self._lookup_for_operation(auth, "SET_RESTRICTION", id_number)
-
-        if digital_id.status == IDStatus.REVOKED:
-            self._audit.record(auth.org_name, "SET_RESTRICTION", id_number,
-                               "Failed: Cannot update a revoked ID.", False)
-            raise InvalidOperationError("Cannot update a revoked Digital ID.")
+        self._reject_revoked(digital_id, auth, "SET_RESTRICTION",
+                             "Cannot update a revoked Digital ID.")
 
         digital_id.has_restriction = has_restriction
         self._audit.record(auth.org_name, "SET_RESTRICTION", id_number,
