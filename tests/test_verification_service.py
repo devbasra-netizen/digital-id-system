@@ -1,54 +1,13 @@
-"""Tests for VerificationService: the three verification modes."""
+"""Tests for VerificationService: the three verification modes.
+
+Fixtures (platform, central, bank, tax, dvla, employer, active_id) come
+from tests/conftest.py.
+"""
 
 import pytest
 from datetime import date
 
-from src.platform import DigitalIDPlatform
-from src.models.digital_id import OrganisationType
-from src.auth.organisation_auth import OrganisationAuth
 from src.exceptions import PermissionError, ValidationError
-
-
-# Fixtures
-
-@pytest.fixture
-def platform():
-    return DigitalIDPlatform()
-
-
-@pytest.fixture
-def central():
-    return OrganisationAuth(OrganisationType.CENTRAL_AUTHORITY, "Home Ministry")
-
-
-@pytest.fixture
-def bank():
-    return OrganisationAuth(OrganisationType.BANK, "Test Bank")
-
-
-@pytest.fixture
-def tax():
-    return OrganisationAuth(OrganisationType.TAX_AUTHORITY, "HMRC")
-
-
-@pytest.fixture
-def dvla():
-    return OrganisationAuth(OrganisationType.DRIVING_LICENCE_AUTHORITY, "DVLA")
-
-
-@pytest.fixture
-def employer():
-    return OrganisationAuth(OrganisationType.EMPLOYER, "Acme Corp")
-
-
-@pytest.fixture
-def active_id(platform, central):
-    digital_id = platform.identity.create_digital_id(
-        central, "TEST001", "Jane Doe",
-        date(1992, 6, 10), "British", "1 Test Lane", "jane@test.com"
-    )
-    platform.identity.activate_id(central, "TEST001")
-    return digital_id
 
 
 # Basic verification (banks, employers, welfare, local authority)

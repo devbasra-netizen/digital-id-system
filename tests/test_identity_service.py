@@ -1,48 +1,19 @@
-"""Tests for IdentityService: lifecycle, updates, queries, audit hooks."""
+"""Tests for IdentityService: lifecycle, updates, queries, audit hooks.
+
+Fixtures (platform, central, bank, pending_id, active_id) come from
+tests/conftest.py.
+"""
 
 import pytest
 from datetime import date
 
-from src.platform import DigitalIDPlatform
-from src.models.digital_id import IDStatus, OrganisationType
-from src.auth.organisation_auth import OrganisationAuth
+from src.models.digital_id import IDStatus
 from src.exceptions import (
     InvalidOperationError,
     PermissionError,
     IDNotFoundError,
     ValidationError,
 )
-
-
-# Fixtures
-
-@pytest.fixture
-def platform():
-    return DigitalIDPlatform()
-
-
-@pytest.fixture
-def central():
-    return OrganisationAuth(OrganisationType.CENTRAL_AUTHORITY, "Home Ministry")
-
-
-@pytest.fixture
-def bank():
-    return OrganisationAuth(OrganisationType.BANK, "Test Bank")
-
-
-@pytest.fixture
-def pending_id(platform, central):
-    return platform.identity.create_digital_id(
-        central, "TEST001", "John Doe",
-        date(1990, 1, 1), "British", "1 Test Street", "john@test.com"
-    )
-
-
-@pytest.fixture
-def active_id(platform, central, pending_id):
-    platform.identity.activate_id(central, pending_id.id_number)
-    return pending_id
 
 
 # Creation
