@@ -59,3 +59,5 @@ IOT452U 2025-26 Individual Coursework.html
 IOT452U 2025-26 Individual Coursework.pdf
 Screenshot 2026-04-25 at 15.59.49.png
 
+.mypy_cache/
+*.pdf
