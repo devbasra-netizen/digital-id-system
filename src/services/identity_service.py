@@ -1,9 +1,5 @@
-"""Identity Service: Digital ID lifecycle operations.
-
-Only the central authority can create, update, or change the status of a
-Digital ID. Every operation is permission-checked, validated, and logged
-to the audit trail (including failures).
-"""
+# Identity lifecycle operations (create / update / status changes).
+# Only the central authority can call these; everything is permission-checked and audit-logged.
 
 from datetime import date
 from typing import Dict, List
@@ -23,18 +19,6 @@ from src.validators import (
 
 
 class IdentityService:
-    """Lifecycle operations for Digital IDs.
-
-    Status flow:
-        PENDING -> ACTIVE <-> SUSPENDED
-        any non-revoked state -> REVOKED  (terminal)
-
-    A few rules worth calling out:
-        - suspend_id only accepts ACTIVE IDs
-        - activate_id is idempotent for ACTIVE IDs
-        - revoke_id is idempotent for REVOKED IDs
-        - revoked IDs cannot be updated or transitioned again
-    """
 
     def __init__(self, audit_log: AuditLog) -> None:
         self._identities: Dict[str, DigitalID] = {}
@@ -42,7 +26,6 @@ class IdentityService:
 
     @property
     def identities(self) -> Dict[str, DigitalID]:
-        """Read-only handle to the identity store, used by VerificationService."""
         return self._identities
 
     # Internal helpers
@@ -54,7 +37,7 @@ class IdentityService:
         operation: str,
         id_number: str,
     ) -> None:
-        """Authorise a call, recording the failure path before re-raising."""
+        """Log the failure before re-raising."""
         try:
             auth.require_permission(permission)
         except PermissionError as e:
@@ -70,7 +53,6 @@ class IdentityService:
     def _lookup_for_operation(
         self, auth: OrganisationAuth, operation: str, id_number: str
     ) -> DigitalID:
-        """Look up an ID and audit the failure path if it does not exist."""
         try:
             return self._get_id_or_raise(id_number)
         except IDNotFoundError as e:
@@ -80,7 +62,7 @@ class IdentityService:
     def _reject_revoked(
         self, digital_id: DigitalID, auth: OrganisationAuth, operation: str, message: str,
     ) -> None:
-        """Common guard: revoked IDs cannot be modified or transitioned."""
+        """Common guard: revoked IDs can't be modified or transitioned."""
         if digital_id.status == IDStatus.REVOKED:
             self._audit.record(auth.org_name, operation, digital_id.id_number,
                                f"Failed: {message}", False)
@@ -98,11 +80,6 @@ class IdentityService:
         address: str,
         email: str,
     ) -> DigitalID:
-        """Create a new Digital ID in PENDING status.
-
-        Validates every input before mutating state, rejects duplicates, and
-        logs the outcome. Only the Central Authority is authorised.
-        """
         self._check_permission(auth, "create_id", "CREATE_ID", id_number)
 
         try:
@@ -135,7 +112,6 @@ class IdentityService:
         return digital_id
 
     def activate_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
-        """Move a PENDING or SUSPENDED ID to ACTIVE. Idempotent if already ACTIVE."""
         self._check_permission(auth, "change_status", "ACTIVATE_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "ACTIVATE_ID", id_number)
 
@@ -155,7 +131,6 @@ class IdentityService:
         return digital_id
 
     def suspend_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
-        """Suspend an ACTIVE ID and open a new entry in suspension_history."""
         self._check_permission(auth, "change_status", "SUSPEND_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "SUSPEND_ID", id_number)
 
@@ -178,7 +153,6 @@ class IdentityService:
         return digital_id
 
     def reinstate_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
-        """Re-activate a SUSPENDED ID and close the open suspension record."""
         self._check_permission(auth, "change_status", "REINSTATE_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "REINSTATE_ID", id_number)
 
@@ -200,7 +174,6 @@ class IdentityService:
         return digital_id
 
     def revoke_id(self, auth: OrganisationAuth, id_number: str) -> DigitalID:
-        """Permanently revoke a Digital ID. Terminal state."""
         self._check_permission(auth, "change_status", "REVOKE_ID", id_number)
         digital_id = self._lookup_for_operation(auth, "REVOKE_ID", id_number)
 
@@ -220,7 +193,6 @@ class IdentityService:
         return digital_id
 
     def update_address(self, auth: OrganisationAuth, id_number: str, new_address: str) -> DigitalID:
-        """Update the mutable address attribute."""
         self._check_permission(auth, "update_id", "UPDATE_ADDRESS", id_number)
 
         try:
@@ -241,7 +213,6 @@ class IdentityService:
         return digital_id
 
     def update_email(self, auth: OrganisationAuth, id_number: str, new_email: str) -> DigitalID:
-        """Update the mutable email attribute."""
         self._check_permission(auth, "update_id", "UPDATE_EMAIL", id_number)
 
         try:
@@ -261,7 +232,6 @@ class IdentityService:
 
     def set_restriction(self, auth: OrganisationAuth, id_number: str,
                         has_restriction: bool) -> DigitalID:
-        """Set or clear a restriction flag (used by DVLA-style checks)."""
         self._check_permission(auth, "update_id", "SET_RESTRICTION", id_number)
         digital_id = self._lookup_for_operation(auth, "SET_RESTRICTION", id_number)
         self._reject_revoked(digital_id, auth, "SET_RESTRICTION",
@@ -275,7 +245,7 @@ class IdentityService:
     # Query helpers
 
     def find_ids_by_name(self, name_pattern: str) -> List[DigitalID]:
-        """Case-insensitive substring match on full name."""
+        # case-insensitive substring match
         pattern_lower = name_pattern.lower()
         return [d for d in self._identities.values()
                 if pattern_lower in d.full_name.lower()]

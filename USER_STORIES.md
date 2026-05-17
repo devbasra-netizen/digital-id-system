@@ -1,12 +1,12 @@
 # User Stories and Iteration Plan
 
-I worked through the coursework in four short iterations. Each
-iteration finishes with a runnable, testable system - I treated
-"keep main green" as a hard rule rather than an aspiration. Stories
-follow the standard `As a ... I want ... so that ...` form, with
-acceptance criteria that map directly onto the tests in `tests/`.
+I worked through the coursework in four iterations. The rule I set for myself
+was to keep `main.py` runnable at the end of each one — "keep main green"
+rather than leaving things broken between iterations. Stories use the standard
+`As a ... I want ... so that ...` format, with acceptance criteria that tie
+directly to the tests in `tests/`.
 
-The status column reflects where each story ended up at submission.
+The status column shows where each story ended up at submission.
 
 ## Iteration 0 - Project skeleton
 
@@ -56,19 +56,16 @@ The status column reflects where each story ended up at submission.
 
 ## Out of scope
 
-Decisions I deliberately deferred (rationale in `DESIGN.md`):
+Stuff I decided not to do — reasoning is in `DESIGN.md`:
 
-- **Persistence** - the store is in-memory. The brief says console
-  backend, no UI or framework, so SQLite would have added
-  infrastructure concerns the assessment is not asking about.
-- **Concurrency / locking** - single-threaded by design.
-- **Network / HTTP layer** - the brief is explicit that there is no
-  web layer.
+- **Persistence** — the store is in-memory. The brief says console backend with
+  no framework, and SQLite would have added infrastructure the assessment isn't
+  asking for.
+- **Concurrency / locking** — single-threaded by design.
+- **Network / HTTP layer** — the brief is explicit there's no web layer.
 
-## How this maps to the commit history
+## Commit history
 
-I tagged commits with conventional-commit prefixes (`feat:`,
-`test:`, `fix:`, `docs:`, `refactor:`, `chore:`, `ci:`) so the
-history reads top-to-bottom roughly in the order above. Browsing
-`git log --oneline` and the iteration headings here gives a
-matching picture of how the system was built.
+I tagged commits with conventional-commit prefixes (`feat:`, `test:`, `fix:`,
+`docs:`, `refactor:`, `chore:`, `ci:`). `git log --oneline` should map fairly
+neatly onto the iteration headings above.
